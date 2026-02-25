@@ -12,6 +12,7 @@ pub mod liquidate;
 pub mod oracle;
 pub mod repay;
 pub mod risk_management;
+pub mod config_snapshot;
 pub mod withdraw;
 
 #[cfg(test)]
@@ -20,6 +21,7 @@ mod tests;
 use crate::deposit::{AssetParams, DepositDataKey, ProtocolAnalytics};
 use crate::oracle::OracleConfig;
 use crate::risk_management::{RiskConfig, RiskManagementError};
+use crate::config_snapshot::{get_config_snapshot, ConfigSnapshot};
 
 /// Helper function to require admin authorization
 fn require_admin(env: &Env, caller: &Address) -> Result<(), RiskManagementError> {
@@ -394,6 +396,15 @@ pub fn ms_execute(
     /// Returns the current risk configuration or None if not initialized
     pub fn get_risk_config(env: Env) -> Option<RiskConfig> {
         risk_management::get_risk_config(&env)
+    }
+
+    /// Get a read-only configuration snapshot of the protocol
+    ///
+    /// # Returns
+    /// Returns Some(ConfigSnapshot) if initialized, None otherwise.
+    /// No authorization required - safe for any caller.
+    pub fn get_config_snapshot(env: Env) -> Option<ConfigSnapshot> {
+        get_config_snapshot(&env)
     }
 
     /// Get minimum collateral ratio
