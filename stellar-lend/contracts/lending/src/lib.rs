@@ -168,7 +168,7 @@ impl LendingContract {
         if is_paused(&env, PauseType::Liquidation) {
             return Err(BorrowError::ProtocolPaused);
         }
-        
+
         // Point to the internal liquidation logic in the borrow module
         borrow::liquidate_position(
             &env,
@@ -178,7 +178,7 @@ impl LendingContract {
             collateral_asset,
             amount,
         )?;
-        
+
         Ok(())
     }
 
