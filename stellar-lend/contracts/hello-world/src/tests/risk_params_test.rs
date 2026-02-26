@@ -125,6 +125,26 @@ fn test_get_liquidation_incentive_amount() {
 // - Min collateral ratio must be >= liquidation threshold.
 // - Close factor in [0, 100%], liquidation incentive in [0, 50%].
 
+/// # Risk Management Parameters Test Suite
+///
+/// Comprehensive tests for risk parameter configuration and enforcement (#290).
+///
+/// ## Test scenarios
+///
+/// - **Set/Get params**: Initialize, set risk params (full and partial), verify get_risk_config and individual getters.
+/// - **Bounds**: Min/max for min_collateral_ratio, liquidation_threshold, close_factor, liquidation_incentive.
+/// - **Validation**: min_cr >= liquidation_threshold, 10% max change per update, InvalidParameter / ParameterChangeTooLarge.
+/// - **Enforcement**: require_min_collateral_ratio, can_be_liquidated, get_max_liquidatable_amount, get_liquidation_incentive_amount.
+/// - **Admin-only**: set_risk_params, set_pause_switch, set_emergency_pause reject non-admin (Unauthorized).
+/// - **Edge values**: Boundary values (exactly at min/max), zero debt, partial updates.
+/// - **Pause**: Operation pause switches and emergency pause; emergency pause blocks set_risk_params.
+///
+/// ## Security assumptions validated
+///
+/// - Only admin can change risk params and pause state.
+/// - Parameter changes are capped at ±10% per update.
+/// - Min collateral ratio must be >= liquidation threshold.
+/// - Close factor in [0, 100%], liquidation incentive in [0, 50%].
 use crate::{HelloContract, HelloContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
 

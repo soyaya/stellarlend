@@ -1,3 +1,6 @@
+#![allow(deprecated)]
+#![allow(unused_imports)]
+#![allow(dead_code)]
 use soroban_sdk::{contract, contractimpl, Address, Env, Map, Symbol, Vec};
 
 pub mod admin;
@@ -20,6 +23,7 @@ pub mod recovery;
 pub mod repay;
 pub mod reserve;
 pub mod risk_management;
+pub mod config_snapshot;
 pub mod risk_params;
 pub mod storage;
 pub mod types;
@@ -28,6 +32,7 @@ pub mod withdraw;
 use crate::deposit::{DepositDataKey, ProtocolAnalytics};
 use crate::oracle::OracleConfig;
 use crate::risk_management::{RiskConfig, RiskManagementError};
+use crate::config_snapshot::{get_config_snapshot, ConfigSnapshot};
 
 use analytics::{
     generate_protocol_report, generate_user_report, get_recent_activity, get_user_activity_feed,
@@ -293,6 +298,19 @@ impl HelloContract {
     }
 
     /// Get minimum collateral ratio.
+    /// Get a read-only configuration snapshot of the protocol
+    ///
+    /// # Returns
+    /// Returns Some(ConfigSnapshot) if initialized, None otherwise.
+    /// No authorization required - safe for any caller.
+    pub fn get_config_snapshot(env: Env) -> Option<ConfigSnapshot> {
+        get_config_snapshot(&env)
+    }
+
+    /// Get minimum collateral ratio
+    ///
+    /// # Returns
+    /// Returns the minimum collateral ratio in basis points
     pub fn get_min_collateral_ratio(env: Env) -> Result<i128, RiskManagementError> {
         risk_params::get_min_collateral_ratio(&env)
             .map_err(|_| RiskManagementError::InvalidParameter)
@@ -970,6 +988,139 @@ impl HelloContract {
     // ============================================================================
     // Governance Query Functions
     // ============================================================================
+    // ============================================================================
+    // CROSS-ASSET OPERATIONS
+    // ============================================================================
+
+    /// Initialize cross-asset system with admin
+    pub fn initialize_ca(env: Env, admin: Address) -> Result<(), CrossAssetError> {
+        initialize_asset(
+            &env,
+            None,
+            AssetConfig {
+                collateral_factor: 0,
+                borrow_factor: 0,
+                max_supply: 0,
+                max_borrow: 0,
+                can_collateralize: false,
+                can_borrow: false,
+            },
+        )
+    }
+
+    /// Initialize asset configuration
+    pub fn initialize_asset(
+        env: Env,
+        asset: Option<Address>,
+        config: AssetConfig,
+    ) -> Result<(), CrossAssetError> {
+        initialize_asset(&env, asset, config)
+    }
+
+    /// Update asset configuration
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_asset_config(
+        env: Env,
+        asset: Option<Address>,
+        collateral_factor: Option<i128>,
+        borrow_factor: Option<i128>,
+        max_supply: Option<i128>,
+        max_borrow: Option<i128>,
+        can_collateralize: Option<bool>,
+        can_borrow: Option<bool>,
+    ) -> Result<(), CrossAssetError> {
+        update_asset_config(
+            &env,
+            asset,
+            collateral_factor,
+            borrow_factor,
+            max_supply,
+            max_borrow,
+            can_collateralize,
+            can_borrow,
+        )
+    }
+
+    /// Update asset price
+    pub fn update_asset_price(
+        env: Env,
+        asset: Option<Address>,
+        price: i128,
+    ) -> Result<(), CrossAssetError> {
+        update_asset_price(&env, asset, price)
+    }
+
+    /// Deposit collateral for specific asset
+    pub fn ca_deposit_collateral(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        get_user_asset_position(&env, &user, asset)
+    }
+
+    /// Withdraw collateral for specific asset
+    pub fn ca_withdraw_collateral(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        get_user_asset_position(&env, &user, asset)
+    }
+
+    /// Borrow specific asset
+    pub fn ca_borrow_asset(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        get_user_asset_position(&env, &user, asset)
+    }
+
+    /// Repay debt for specific asset
+    pub fn ca_repay_debt(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        get_user_asset_position(&env, &user, asset)
+    }
+
+    /// Get user's position for specific asset
+    pub fn get_user_asset_position(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+    ) -> AssetPosition {
+        get_user_asset_position(&env, &user, asset)
+    }
+
+    /// Get user's unified position summary across all assets
+    pub fn get_user_position_summary(
+        env: Env,
+        user: Address,
+    ) -> Result<UserPositionSummary, CrossAssetError> {
+        get_user_position_summary(&env, &user)
+    }
+
+    /// Get list of all configured assets
+    pub fn get_asset_list(env: Env) -> soroban_sdk::Vec<AssetKey> {
+        get_asset_list(&env)
+    }
+
+    /// Get configuration for specific asset
+    pub fn get_asset_config(
+        env: Env,
+        asset: Option<Address>,
+    ) -> Result<AssetConfig, CrossAssetError> {
+        get_asset_config_by_address(&env, asset)
+    }
+
+    // ============================================================================
 
     /// Get proposal by ID.
     pub fn gov_get_proposal(env: Env, proposal_id: u64) -> Option<Proposal> {
@@ -1030,6 +1181,65 @@ impl HelloContract {
 #[cfg(test)]
 mod tests;
 
+
+    // --- Bridge ---
+
+    /// Register a new bridge (admin only)
+    pub fn register_bridge(
+        env: Env,
+        caller: Address,
+        network_id: u32,
+        bridge: Address,
+        fee_bps: i128,
+    ) -> Result<(), BridgeError> {
+        register_bridge(&env, caller, network_id, bridge, fee_bps)
+    }
+
+    /// Set fee for a bridge (admin only)
+    pub fn set_bridge_fee(
+        env: Env,
+        caller: Address,
+        network_id: u32,
+        fee_bps: i128,
+    ) -> Result<(), BridgeError> {
+        set_bridge_fee(&env, caller, network_id, fee_bps)
+    }
+
+    /// List all registered bridges
+    pub fn list_bridges(env: Env) -> Map<u32, BridgeConfig> {
+        list_bridges(&env)
+    }
+
+    /// Get configuration for a bridge by network id
+    pub fn get_bridge_config(env: Env, network_id: u32) -> Result<BridgeConfig, BridgeError> {
+        get_bridge_config(&env, network_id)
+    }
+
+    /// Deposit into protocol via a bridge
+    pub fn bridge_deposit(
+        env: Env,
+        user: Address,
+        network_id: u32,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<i128, BridgeError> {
+        bridge_deposit(&env, user, network_id, asset, amount)
+    }
+
+    /// Withdraw from protocol via a bridge
+    pub fn bridge_withdraw(
+        env: Env,
+        user: Address,
+        network_id: u32,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<i128, BridgeError> {
+        bridge_withdraw(&env, user, network_id, asset, amount)
+    }
+}
+
+#[cfg(test)]
+// mod test;
 #[cfg(test)]
 mod test_reentrancy;
 

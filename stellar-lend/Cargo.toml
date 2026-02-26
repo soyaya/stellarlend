@@ -2,7 +2,10 @@
 resolver = "2"
 members = [
   "client",
-  "contracts/*",
+  "contracts/amm",
+  "contracts/bridge",
+  "contracts/common",
+  "contracts/lending",
 ]
 
 [workspace.dependencies]

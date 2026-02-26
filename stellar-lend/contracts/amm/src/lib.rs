@@ -46,6 +46,10 @@ impl AmmContract {
         upgrade::UpgradeManager::add_approver(env, caller, approver);
     }
 
+    pub fn upgrade_remove_approver(env: Env, caller: Address, approver: Address) {
+        upgrade::UpgradeManager::remove_approver(env, caller, approver);
+    }
+
     pub fn upgrade_propose(
         env: Env,
         caller: Address,

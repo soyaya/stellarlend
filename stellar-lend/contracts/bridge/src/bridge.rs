@@ -2,6 +2,7 @@
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, log, symbol_short, Address,
     BytesN, Env, String, Symbol, Vec, I256,
+    BytesN, Env, Env, String, String, Symbol, Symbol, Vec, Vec, I256,
 };
 
 // ── Error type ────────────────────────────────────────────────────────────────
@@ -411,6 +412,10 @@ impl BridgeContract {
 
     pub fn upgrade_add_approver(env: Env, caller: Address, approver: Address) {
         stellarlend_common::upgrade::UpgradeManager::add_approver(env, caller, approver);
+    }
+
+    pub fn upgrade_remove_approver(env: Env, caller: Address, approver: Address) {
+        stellarlend_common::upgrade::UpgradeManager::remove_approver(env, caller, approver);
     }
 
     pub fn upgrade_propose(

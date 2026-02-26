@@ -114,6 +114,32 @@ impl UpgradeManager {
             .publish((symbol_short!("up_apadd"), caller, approver), ());
     }
 
+    pub fn remove_approver(env: Env, caller: Address, approver: Address) {
+        caller.require_auth();
+        Self::assert_admin(&env, &caller);
+
+        let approvers = Self::approvers(&env);
+        let mut updated = Vec::new(&env);
+        for existing in approvers.iter() {
+            if existing != approver {
+                updated.push_back(existing);
+            }
+        }
+
+        if updated.len() == approvers.len() {
+            return;
+        }
+        if updated.is_empty() || updated.len() < Self::required_approvals(env.clone()) {
+            panic_with_error!(&env, UpgradeError::InvalidThreshold);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&UpgradeKey::Approvers, &updated);
+        env.events()
+            .publish((symbol_short!("up_aprm"), caller, approver), ());
+    }
+
     pub fn upgrade_propose(
         env: Env,
         caller: Address,
