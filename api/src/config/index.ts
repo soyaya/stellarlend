@@ -2,6 +2,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+if (!process.env.CONTRACT_ID) {
+  throw new Error('CONTRACT_ID environment variable is required');
+}
 export const config = {
   server: {
     port: parseInt(process.env.PORT || '3000', 10),
