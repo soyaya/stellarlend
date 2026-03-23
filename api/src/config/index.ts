@@ -5,6 +5,12 @@ dotenv.config();
 if (!process.env.CONTRACT_ID) {
   throw new Error('CONTRACT_ID environment variable is required');
 }
+
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret || jwtSecret === 'default-secret-change-me' || jwtSecret.length < 32) {
+  throw new Error('JWT_SECRET must be set to a strong secret (min 32 chars)');
+}
+
 export const config = {
   server: {
     port: parseInt(process.env.PORT || '3000', 10),
@@ -18,7 +24,7 @@ export const config = {
     contractId: process.env.CONTRACT_ID || '',
   },
   auth: {
-    jwtSecret: process.env.JWT_SECRET || 'default-secret-change-me',
+    jwtSecret: process.env.JWT_SECRET as string,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
   },
   rateLimit: {
