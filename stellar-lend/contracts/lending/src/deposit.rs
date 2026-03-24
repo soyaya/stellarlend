@@ -1,5 +1,10 @@
+pub use crate::events::VaultDepositEvent;
+
+/// Backward-compatible name for vault deposit events (see [`VaultDepositEvent`]).
+pub type DepositEvent = VaultDepositEvent;
+
 use crate::pause::{self, PauseType};
-use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env};
+use soroban_sdk::{contracterror, contracttype, Address, Env};
 
 /// Errors that can occur during deposit operations
 #[contracterror]
@@ -31,17 +36,6 @@ pub struct DepositCollateral {
     pub amount: i128,
     pub asset: Address,
     pub last_deposit_time: u64,
-}
-
-/// Deposit event data
-#[contractevent]
-#[derive(Clone, Debug)]
-pub struct DepositEvent {
-    pub user: Address,
-    pub asset: Address,
-    pub amount: i128,
-    pub new_balance: i128,
-    pub timestamp: u64,
 }
 
 /// Deposit collateral into the protocol
@@ -164,7 +158,7 @@ fn get_min_deposit_amount(env: &Env) -> i128 {
 }
 
 fn emit_deposit_event(env: &Env, user: Address, asset: Address, amount: i128, new_balance: i128) {
-    DepositEvent {
+    VaultDepositEvent {
         user,
         asset,
         amount,

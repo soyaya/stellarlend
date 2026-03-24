@@ -1,6 +1,8 @@
-use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env};
+use soroban_sdk::{contracterror, contracttype, Address, Env};
 
 use crate::deposit::{DepositCollateral, DepositDataKey};
+
+pub use crate::events::WithdrawEvent;
 
 /// Errors that can occur during withdraw operations
 #[contracterror]
@@ -20,17 +22,6 @@ pub enum WithdrawError {
 pub enum WithdrawDataKey {
     Paused,
     MinWithdrawAmount,
-}
-
-/// Withdraw event data
-#[contractevent]
-#[derive(Clone, Debug)]
-pub struct WithdrawEvent {
-    pub user: Address,
-    pub asset: Address,
-    pub amount: i128,
-    pub remaining_balance: i128,
-    pub timestamp: u64,
 }
 
 /// Minimum collateral ratio in basis points (150%)

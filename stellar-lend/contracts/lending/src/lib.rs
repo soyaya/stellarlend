@@ -1,6 +1,7 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, Bytes, Env, Val, Vec};
 
+mod events;
 mod borrow;
 mod deposit;
 mod flash_loan;

@@ -1,7 +1,7 @@
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
-    Address, Env,
+    Address, Env, Symbol,
 };
 
 fn setup_test(
@@ -39,6 +39,22 @@ fn test_borrow_success() {
 
     let collateral = client.get_user_collateral(&user);
     assert_eq!(collateral.amount, 20_000);
+
+    let events = env.events().all();
+    let contract_id = client.address.clone();
+    let mut saw_borrow = false;
+    for i in 0..events.len() {
+        let e = events.get(i).unwrap();
+        if e.0 != contract_id {
+            continue;
+        }
+        let topic: Symbol = Symbol::from_val(&env, &e.1.get(0).unwrap());
+        if topic == Symbol::new(&env, "borrow_event") {
+            saw_borrow = true;
+            break;
+        }
+    }
+    assert!(saw_borrow, "lending contract should emit borrow_event");
 }
 
 #[test]

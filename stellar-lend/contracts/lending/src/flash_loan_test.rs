@@ -1,5 +1,5 @@
 use super::*;
-use soroban_sdk::{testutils::Address as _, token, Address, Bytes, Env};
+use soroban_sdk::{testutils::Address as _, token, Address, Bytes, Env, Symbol};
 
 // Mock receiver contract that implements the flash loan callback
 #[contract]
@@ -74,6 +74,21 @@ fn test_flash_loan_success() {
     let token_client = token::Client::new(&env, &asset);
     assert_eq!(token_client.balance(&contract_id), 100_000 + fee);
     assert_eq!(token_client.balance(&receiver_address), 1000 - fee);
+
+    let events = env.events().all();
+    let mut saw_flash = false;
+    for i in 0..events.len() {
+        let e = events.get(i).unwrap();
+        if e.0 != contract_id {
+            continue;
+        }
+        let topic: Symbol = Symbol::from_val(&env, &e.1.get(0).unwrap());
+        if topic == Symbol::new(&env, "flash_loan_event") {
+            saw_flash = true;
+            break;
+        }
+    }
+    assert!(saw_flash, "lending contract should emit flash_loan_event");
 }
 
 #[test]

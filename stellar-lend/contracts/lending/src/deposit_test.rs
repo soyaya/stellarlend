@@ -1,7 +1,7 @@
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
-    Address, Env,
+    Address, Env, Symbol,
 };
 
 #[test]
@@ -22,6 +22,22 @@ fn test_deposit_success() {
 
     let position = client.get_user_collateral_deposit(&user, &asset);
     assert_eq!(position.amount, 10_000);
+
+    let events = env.events().all();
+    let contract_id = client.address.clone();
+    let mut saw_deposit = false;
+    for i in 0..events.len() {
+        let e = events.get(i).unwrap();
+        if e.0 != contract_id {
+            continue;
+        }
+        let topic: Symbol = Symbol::from_val(&env, &e.1.get(0).unwrap());
+        if topic == Symbol::new(&env, "deposit_event") {
+            saw_deposit = true;
+            break;
+        }
+    }
+    assert!(saw_deposit, "lending contract should emit deposit_event");
 }
 
 #[test]

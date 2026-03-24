@@ -10,8 +10,13 @@
 //! ## Collateral Requirements
 //! Minimum collateral ratio is 150% (15,000 basis points).
 
+pub use crate::events::{BorrowCollateralDepositEvent, BorrowEvent, RepayEvent};
+
+/// Backward-compatible name for collateral added to a borrow position (see [`BorrowCollateralDepositEvent`]).
+pub type DepositEvent = BorrowCollateralDepositEvent;
+
 use crate::pause::{self, PauseType};
-use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env, I256};
+use soroban_sdk::{contracterror, contracttype, Address, Env, I256};
 
 /// Errors that can occur during borrow operations.
 #[contracterror]
@@ -87,34 +92,6 @@ pub struct BorrowCollateral {
     pub amount: i128,
     /// Address of the collateral asset
     pub asset: Address,
-}
-
-#[contractevent]
-#[derive(Clone, Debug)]
-pub struct BorrowEvent {
-    pub user: Address,
-    pub asset: Address,
-    pub amount: i128,
-    pub collateral: i128,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug)]
-pub struct DepositEvent {
-    pub user: Address,
-    pub asset: Address,
-    pub amount: i128,
-    pub timestamp: u64,
-}
-
-#[contractevent]
-#[derive(Clone, Debug)]
-pub struct RepayEvent {
-    pub user: Address,
-    pub asset: Address,
-    pub amount: i128,
-    pub timestamp: u64,
 }
 
 const COLLATERAL_RATIO_MIN: i128 = 15000; // 150% in basis points
@@ -215,7 +192,7 @@ pub fn deposit(env: &Env, user: Address, asset: Address, amount: i128) -> Result
 
     save_collateral_position(env, &user, &collateral_position);
 
-    DepositEvent {
+    BorrowCollateralDepositEvent {
         user,
         asset,
         amount,

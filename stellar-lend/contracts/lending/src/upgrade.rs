@@ -1,6 +1,10 @@
+use crate::events::{
+    UpgradeApprovalRecordedEvent, UpgradeApproverAddedEvent, UpgradeExecutedEvent, UpgradeInitEvent,
+    UpgradeProposedEvent, UpgradeRollbackEvent,
+};
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, Address,
-    BytesN, Env, Vec,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
+    Vec,
 };
 
 #[contracterror]
@@ -97,8 +101,11 @@ impl UpgradeManager {
             .persistent()
             .set(&UpgradeKey::CurrentVersion, &0u32);
 
-        env.events()
-            .publish((symbol_short!("up_init"), admin), required_approvals);
+        UpgradeInitEvent {
+            admin: admin.clone(),
+            required_approvals,
+        }
+        .publish(&env);
     }
 
     /// Adds an upgrade approver. Only admin can call.
@@ -115,8 +122,11 @@ impl UpgradeManager {
                 .set(&UpgradeKey::Approvers, &approvers);
         }
 
-        env.events()
-            .publish((symbol_short!("up_apadd"), caller, approver), ());
+        UpgradeApproverAddedEvent {
+            caller: caller.clone(),
+            approver: approver.clone(),
+        }
+        .publish(&env);
     }
 
     /// Proposes a new implementation hash and target version.
@@ -168,8 +178,12 @@ impl UpgradeManager {
             .persistent()
             .set(&UpgradeKey::NextProposalId, &(id + 1));
 
-        env.events()
-            .publish((symbol_short!("up_prop"), caller, id), new_version);
+        UpgradeProposedEvent {
+            caller: caller.clone(),
+            id,
+            new_version,
+        }
+        .publish(&env);
         id
     }
 
@@ -196,8 +210,12 @@ impl UpgradeManager {
         env.storage()
             .persistent()
             .set(&UpgradeKey::Proposal(proposal_id), &proposal);
-        env.events()
-            .publish((symbol_short!("up_appr"), caller, proposal_id), count);
+        UpgradeApprovalRecordedEvent {
+            caller: caller.clone(),
+            proposal_id,
+            approval_count: count,
+        }
+        .publish(&env);
         count
     }
 
@@ -231,10 +249,12 @@ impl UpgradeManager {
             .persistent()
             .set(&UpgradeKey::Proposal(proposal_id), &proposal);
 
-        env.events().publish(
-            (symbol_short!("up_exec"), caller, proposal_id),
-            proposal.new_version,
-        );
+        UpgradeExecutedEvent {
+            caller: caller.clone(),
+            proposal_id,
+            new_version: proposal.new_version,
+        }
+        .publish(&env);
     }
 
     /// Rolls back an executed proposal to the previous hash/version. Only admin can call.
@@ -268,10 +288,12 @@ impl UpgradeManager {
             .persistent()
             .set(&UpgradeKey::Proposal(proposal_id), &proposal);
 
-        env.events().publish(
-            (symbol_short!("up_roll"), caller, proposal_id),
+        UpgradeRollbackEvent {
+            caller: caller.clone(),
+            proposal_id,
             prev_version,
-        );
+        }
+        .publish(&env);
     }
 
     /// Returns the status of a proposal.
