@@ -136,7 +136,7 @@ pub fn borrow(
     }
 
     let mut debt_position = get_debt_position(env, &user, Some(&asset));
-    let accrued_interest = calculate_interest(env, &debt_position);
+    let accrued_interest = calculate_interest(env, &debt_position)?;
 
     debt_position.borrowed_amount = debt_position
         .borrowed_amount
@@ -227,7 +227,7 @@ pub fn repay(env: &Env, user: Address, asset: Address, amount: i128) -> Result<(
     }
 
     // First repay interest, then principal
-    let accrued_interest = calculate_interest(env, &debt_position);
+    let accrued_interest = calculate_interest(env, &debt_position)?;
     debt_position.interest_accrued = debt_position
         .interest_accrued
         .checked_add(accrued_interest)
@@ -286,9 +286,9 @@ pub(crate) fn validate_collateral_ratio(collateral: i128, borrow: i128) -> Resul
     Ok(())
 }
 
-pub(crate) fn calculate_interest(env: &Env, position: &DebtPosition) -> i128 {
+pub(crate) fn calculate_interest(env: &Env, position: &DebtPosition) -> Result<i128, BorrowError> {
     if position.borrowed_amount == 0 {
-        return 0;
+        return Ok(0);
     }
 
     let current_time = env.ledger().timestamp();
@@ -304,7 +304,7 @@ pub(crate) fn calculate_interest(env: &Env, position: &DebtPosition) -> i128 {
         .div(&I256::from_i128(env, 10000))
         .div(&I256::from_i128(env, SECONDS_PER_YEAR as i128));
 
-    interest_256.to_i128().unwrap_or(i128::MAX)
+    interest_256.to_i128().ok_or(BorrowError::Overflow)
 }
 
 fn get_debt_position(env: &Env, user: &Address, default_asset: Option<&Address>) -> DebtPosition {
@@ -396,8 +396,9 @@ pub fn initialize_borrow_settings(
 
 pub fn get_user_debt(env: &Env, user: &Address) -> DebtPosition {
     let mut position = get_debt_position(env, user, None);
-    let accrued = calculate_interest(env, &position);
-    position.interest_accrued = position.interest_accrued.saturating_add(accrued);
+    if let Ok(accrued) = calculate_interest(env, &position) {
+        position.interest_accrued = position.interest_accrued.saturating_add(accrued);
+    }
     position
 }
 

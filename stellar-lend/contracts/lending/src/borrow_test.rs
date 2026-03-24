@@ -1,4 +1,5 @@
 use super::*;
+use crate::borrow::calculate_interest;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     Address, Env,
@@ -149,6 +150,40 @@ fn test_borrow_interest_accrual() {
     assert!(debt.interest_accrued <= 5000); // ~5% of 100,000
 }
 
+#[test]
+fn test_interest_overflow_returns_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // Construct a position that will produce an interest larger than i128 when scaled
+    let mut position = DebtPosition {
+        borrowed_amount: i128::MAX,
+        interest_accrued: 0,
+        last_update: 0,
+        asset: Address::generate(&env),
+    };
+
+    // Advance time by 100 years to amplify interest (roughly borrowed * 5x at 5% APY)
+    env.ledger().with_mut(|li| {
+        li.timestamp = 100 * 31_536_000;
+    });
+
+    // Borrowed amount is i128::MAX, 100y at 5% should overflow i128
+    let result = calculate_interest(&env, &position);
+    assert!(matches!(result, Err(BorrowError::Overflow)));
+
+    // Ensure callers can propagate the error; simulate accrue step
+    position.last_update = 0;
+    let accrue_result = (|| -> Result<(), BorrowError> {
+        let new_interest = calculate_interest(&env, &position)?;
+        position.interest_accrued = position
+            .interest_accrued
+            .checked_add(new_interest)
+            .ok_or(BorrowError::Overflow)?;
+        Ok(())
+    })();
+    assert!(matches!(accrue_result, Err(BorrowError::Overflow)));
+}
 #[test]
 fn test_collateral_ratio_validation() {
     let env = Env::default();
