@@ -169,6 +169,28 @@ export function loadConfig(): OracleServiceConfig {
   };
 }
 
+/**
+ * Masks a secret key for safe logging.
+ * Shows first 2 and last 2 characters only.
+ * Handles edge cases: empty string, very short keys.
+ */
+export function maskSecret(key: string): string {
+  if (!key || key.length === 0) return '****';
+  if (key.length <= 8) return '****';
+  return key.slice(0, 2) + '*'.repeat(key.length - 4) + key.slice(-2);
+}
+
+/**
+ * Returns a safe (redacted) version of the config for logging.
+ * Strips adminSecretKey entirely.
+ */
+export function getSafeConfig(config: OracleServiceConfig): Omit<OracleServiceConfig, 'adminSecretKey'> & { adminSecretKey: string } {
+  return {
+    ...config,
+    adminSecretKey: maskSecret(config.adminSecretKey),
+  };
+}
+
 export const PRICE_SCALE = 1_000_000n;
 
 export function scalePrice(price: number): bigint {

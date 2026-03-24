@@ -6,7 +6,7 @@
  * @see https://github.com/stellarlend/stellarlend-contracts
  */
 
-import { loadConfig, type OracleServiceConfig } from './config.js';
+import { loadConfig, getSafeConfig, type OracleServiceConfig } from './config.js';
 import { configureLogger, logger } from './utils/logger.js';
 import {
   createCoinGeckoProvider,
@@ -39,6 +39,7 @@ export class OracleService {
   private isRunning: boolean = false;
 
   constructor(config: OracleServiceConfig) {
+    // Store config but never log adminSecretKey directly
     this.config = config;
 
     // Configure logging
@@ -168,13 +169,15 @@ export class OracleService {
   }
 
   /**
-   * Get current service status
+   * Get current service status (safe for logging — secret key is masked)
    */
   getStatus() {
+    const safe = getSafeConfig(this.config);
     return {
       isRunning: this.isRunning,
-      network: this.config.stellarNetwork,
-      contractId: this.config.contractId,
+      network: safe.stellarNetwork,
+      contractId: safe.contractId,
+      adminSecretKey: safe.adminSecretKey, // masked value
       providers: this.aggregator.getProviders(),
       aggregatorStats: this.aggregator.getStats(),
     };
@@ -232,5 +235,5 @@ async function main(): Promise<void> {
 main().catch(console.error);
 
 // Export for programmatic use
-export { loadConfig } from './config.js';
+export { loadConfig, maskSecret, getSafeConfig } from './config.js';
 export type { OracleServiceConfig } from './config.js';
