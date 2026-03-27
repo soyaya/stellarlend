@@ -27,3 +27,4 @@ pub mod multisig_test;
 pub mod multisig_governance_execution_test;
 pub mod cross_contract_test;
 pub mod timelock_test;
+pub mod input_length_test;

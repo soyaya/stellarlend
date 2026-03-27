@@ -21,6 +21,9 @@ use crate::events::{
 
 use crate::{interest_rate, risk_management, risk_params};
 
+/// Maximum byte length for a proposal description string.
+pub const MAX_DESCRIPTION_LEN: u32 = 256;
+
 // ========================================================================
 // Initialization
 // ========================================================================
@@ -111,6 +114,10 @@ pub fn create_proposal(
     voting_threshold: Option<i128>,
 ) -> Result<u64, GovernanceError> {
     proposer.require_auth();
+
+    if description.len() > MAX_DESCRIPTION_LEN {
+        return Err(GovernanceError::InputTooLong);
+    }
 
     let config: GovernanceConfig = env
         .storage()
@@ -476,6 +483,10 @@ pub fn create_admin_proposal(
 ) -> Result<u64, GovernanceError> {
     admin.require_auth();
 
+    if description.len() > MAX_DESCRIPTION_LEN {
+        return Err(GovernanceError::InputTooLong);
+    }
+
     let stored_admin: Address = env
         .storage()
         .instance()
@@ -541,6 +552,10 @@ pub fn create_emergency_proposal(
     description: String,
 ) -> Result<u64, GovernanceError> {
     caller.require_auth();
+
+    if description.len() > MAX_DESCRIPTION_LEN {
+        return Err(GovernanceError::InputTooLong);
+    }
 
     // Verification of multisig auth happens via approvals in multisig module,
     // but for "emergency bypass" we can allow direct execution if called by a valid multisig admin

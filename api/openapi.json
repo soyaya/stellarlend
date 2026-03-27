@@ -1,0 +1,318 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "StellarLend API",
+    "version": "1.0.0",
+    "description": "REST API for StellarLend core lending operations on Stellar/Soroban",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "API base path"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "PrepareResponse": {
+        "type": "object",
+        "properties": {
+          "unsignedXdr": {
+            "type": "string",
+            "description": "Unsigned transaction XDR"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "deposit",
+              "borrow",
+              "repay",
+              "withdraw"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "XDR expiration timestamp"
+          }
+        },
+        "required": [
+          "unsignedXdr",
+          "operation",
+          "expiresAt"
+        ]
+      },
+      "SubmitRequest": {
+        "type": "object",
+        "properties": {
+          "signedXdr": {
+            "type": "string",
+            "description": "Signed transaction XDR"
+          }
+        },
+        "required": [
+          "signedXdr"
+        ]
+      },
+      "TransactionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "transactionHash": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "success",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "ledger": {
+            "type": "integer"
+          },
+          "details": {
+            "description": "Optional raw provider payload for debugging"
+          }
+        },
+        "required": [
+          "success",
+          "status"
+        ]
+      },
+      "HealthCheckResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "unhealthy"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "services": {
+            "type": "object",
+            "properties": {
+              "horizon": {
+                "type": "boolean"
+              },
+              "sorobanRpc": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "horizon",
+              "sorobanRpc"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "timestamp",
+          "services"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Check API and service health",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "All services are healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "One or more services are unhealthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lending/prepare/{operation}": {
+      "get": {
+        "summary": "Prepare an unsigned lending transaction",
+        "description": "Builds an unsigned Soroban transaction XDR for the given lending operation. The client must sign the XDR and submit it via the submit endpoint.",
+        "tags": [
+          "Lending"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operation",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "deposit",
+                "borrow",
+                "repay",
+                "withdraw"
+              ]
+            },
+            "description": "The lending operation to prepare"
+          },
+          {
+            "in": "query",
+            "name": "userAddress",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Stellar public key (Ed25519)"
+          },
+          {
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Amount as a positive integer string (stroops)"
+          },
+          {
+            "in": "query",
+            "name": "assetAddress",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional asset contract address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unsigned transaction XDR ready for signing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lending/submit": {
+      "post": {
+        "summary": "Submit a signed transaction",
+        "description": "Submits a client-signed transaction XDR to the Stellar network and monitors it until completion.",
+        "tags": [
+          "Lending"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction submitted and monitored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or transaction failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": []
+}

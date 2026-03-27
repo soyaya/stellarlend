@@ -41,6 +41,12 @@ const mockStellarService: jest.Mocked<StellarService> = {
   }),
 } as any;
 (StellarService as jest.Mock).mockImplementation(() => mockStellarService);
+
+// Mock logger to capture audit logs
+import logger from '../utils/logger';
+jest.mock('../utils/logger');
+const mockLogger = logger as jest.Mocked<typeof logger>;
+
 import request from 'supertest';
 import app from '../app';
 
@@ -118,6 +124,71 @@ describe('Lending Controller', () => {
       expect(response.body.transactionHash).toBe('mock_tx_hash');
     });
 
+    it('should log audit entry when transaction succeeds with full audit data', async () => {
+      const auditData = {
+        signedXdr: 'signed_xdr_string',
+        operation: 'deposit',
+        userAddress: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
+        amount: '1000000',
+        assetAddress: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH2U'
+      };
+
+      const response = await request(app)
+        .post('/api/lending/submit')
+        .send(auditData);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      
+      // Verify audit log was called with correct structure
+      expect(mockLogger.info).toHaveBeenCalledWith('AUDIT', expect.objectContaining({
+        action: 'DEPOSIT',
+        userAddress: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
+        amount: '1000000',
+        assetAddress: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH2U',
+        txHash: 'mock_tx_hash',
+        timestamp: expect.any(String),
+        ip: expect.any(String),
+        status: 'success',
+        ledger: 12345
+      }));
+    });
+
+    it('should log audit entry with redacted data when audit fields are missing', async () => {
+      const response = await request(app)
+        .post('/api/lending/submit')
+        .send({ signedXdr: 'signed_xdr_string' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      
+      // Verify audit log was called with redacted values
+      expect(mockLogger.info).toHaveBeenCalledWith('AUDIT', expect.objectContaining({
+        action: 'TRANSACTION_EXECUTED',
+        userAddress: 'REDACTED',
+        amount: 'REDACTED',
+        assetAddress: 'REDACTED',
+        txHash: 'mock_tx_hash',
+        timestamp: expect.any(String),
+        ip: expect.any(String),
+        status: 'success',
+        ledger: 12345
+      }));
+    });
+
+    it('should validate optional audit fields when provided', async () => {
+      const response = await request(app)
+        .post('/api/lending/submit')
+        .send({
+          signedXdr: 'signed_xdr_string',
+          operation: 'invalid_operation',
+          userAddress: 'invalid_address',
+          amount: 'invalid_amount'
+        });
+
+      expect(response.status).toBe(400);
+    });
+
     it('should return 400 when transaction fails', async () => {
       mockStellarService.submitTransaction.mockResolvedValueOnce({
         success: false,
@@ -131,12 +202,39 @@ describe('Lending Controller', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
+      
+      // No audit log should be generated for failed transactions
+      expect(mockLogger.info).not.toHaveBeenCalledWith('AUDIT', expect.any(Object));
     });
 
     it('should return 400 when signedXdr is missing', async () => {
       const response = await request(app).post('/api/lending/submit').send({});
 
       expect(response.status).toBe(400);
+    });
+
+    it('should never log secrets in audit entries', async () => {
+      const response = await request(app)
+        .post('/api/lending/submit')
+        .send({
+          signedXdr: 'signed_xdr_string',
+          operation: 'deposit',
+          userAddress: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
+          amount: '1000000',
+          // Note: userSecret should not be a field that gets logged
+        });
+
+      expect(response.status).toBe(200);
+      
+      // Verify audit log does not contain any secret fields
+      const auditCall = mockLogger.info.mock.calls.find(call => call[0] === 'AUDIT');
+      expect(auditCall).toBeDefined();
+      const auditData = auditCall![1];
+      
+      // Ensure no secret fields are present
+      expect(Object.keys(auditData)).not.toContain('userSecret');
+      expect(Object.keys(auditData)).not.toContain('privateKey');
+      expect(Object.keys(auditData)).not.toContain('secret');
     });
   });
 

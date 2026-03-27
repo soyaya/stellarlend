@@ -1,5 +1,6 @@
 {
   "name": "stellarlend",
+  "version": "1.0.0",
   "private": true,
   "workspaces": [
     "api",
@@ -14,6 +15,11 @@
     "typecheck:all": "npm run typecheck --workspaces --if-present"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
   }
 }

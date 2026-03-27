@@ -29,7 +29,7 @@ export const prepare = async (req: Request, res: Response, next: NextFunction) =
 
 export const submit = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { signedXdr }: SubmitRequest = req.body;
+    const { signedXdr, operation, userAddress, amount, assetAddress }: SubmitRequest = req.body;
 
     logger.info('Submitting signed transaction');
 
@@ -38,6 +38,22 @@ export const submit = async (req: Request, res: Response, next: NextFunction) =>
 
     if (result.success && result.transactionHash) {
       const monitorResult = await stellarService.monitorTransaction(result.transactionHash);
+      
+      // Create audit log entry with operation details
+      const auditLogData = {
+        action: operation ? operation.toUpperCase() : 'TRANSACTION_EXECUTED',
+        userAddress: userAddress || 'REDACTED',
+        amount: amount || 'REDACTED',
+        assetAddress: assetAddress || 'REDACTED',
+        txHash: result.transactionHash,
+        timestamp: new Date().toISOString(),
+        ip: req.ip,
+        status: monitorResult.status,
+        ledger: monitorResult.ledger
+      };
+
+      logger.info('AUDIT', auditLogData);
+      
       return res.status(200).json(monitorResult);
     }
 

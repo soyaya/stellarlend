@@ -37,7 +37,7 @@ vi.mock('@stellar/stellar-sdk', () => {
         /* operation */
       }),
     })),
-    SorobanRpc: {
+    rpc: {
       Server: vi.fn().mockImplementation((url: string) => ({
         getAccount: vi.fn().mockResolvedValue(mockAccount),
         simulateTransaction: vi.fn().mockResolvedValue({
@@ -239,8 +239,8 @@ describe('ContractUpdater', () => {
 
   describe('retry mechanism', () => {
     it('should retry on failure', async () => {
-      const { SorobanRpc } = await import('@stellar/stellar-sdk');
-      const mockServer = new SorobanRpc.Server('mock');
+      const { rpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new rpc.Server('mock');
 
       // First attempt fails, second succeeds
       let attemptCount = 0;
@@ -272,8 +272,8 @@ describe('ContractUpdater', () => {
     });
 
     it('should use exponential backoff for retries', async () => {
-      const { SorobanRpc } = await import('@stellar/stellar-sdk');
-      const mockServer = new SorobanRpc.Server('mock');
+      const { rpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new rpc.Server('mock');
 
       let attemptCount = 0;
       const attemptTimes: number[] = [];
@@ -303,9 +303,9 @@ describe('ContractUpdater', () => {
 
   describe('error handling', () => {
     it('should handle simulation errors', async () => {
-      const { SorobanRpc } = await import('@stellar/stellar-sdk');
+      const { rpc } = await import('@stellar/stellar-sdk');
 
-      vi.spyOn(SorobanRpc.Api, 'isSimulationError').mockReturnValue(true);
+      vi.spyOn(rpc.Api, 'isSimulationError').mockReturnValue(true);
 
       const result = await updater.updatePrice('XLM', 150000n, Date.now());
 
@@ -314,8 +314,8 @@ describe('ContractUpdater', () => {
     });
 
     it('should handle transaction send errors', async () => {
-      const { SorobanRpc } = await import('@stellar/stellar-sdk');
-      const mockServer = new SorobanRpc.Server('mock');
+      const { rpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new rpc.Server('mock');
 
       vi.spyOn(mockServer, 'sendTransaction').mockResolvedValue({
         status: 'ERROR',
@@ -329,11 +329,11 @@ describe('ContractUpdater', () => {
     });
 
     it('should handle transaction failures on-chain', async () => {
-      const { SorobanRpc } = await import('@stellar/stellar-sdk');
-      const mockServer = new SorobanRpc.Server('mock');
+      const { rpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new rpc.Server('mock');
 
       vi.spyOn(mockServer, 'getTransaction').mockResolvedValue({
-        status: SorobanRpc.Api.GetTransactionStatus.FAILED,
+        status: rpc.Api.GetTransactionStatus.FAILED,
       } as any);
 
       const result = await updater.updatePrice('XLM', 150000n, Date.now());
@@ -380,7 +380,7 @@ describe('ContractUpdater', () => {
     });
 
     it('should throw timeout error if transaction is NOT_FOUND for too long', async () => {
-      const { SorobanRpc } = await import('@stellar/stellar-sdk');
+      const { rpc } = await import('@stellar/stellar-sdk');
 
       // Create a specific updater with maxRetries: 1 to avoid long test runs
       const timeoutUpdater = createContractUpdater({
@@ -389,8 +389,8 @@ describe('ContractUpdater', () => {
       });
 
       // Ensure simulation doesn't fail
-      vi.spyOn(SorobanRpc.Api, 'isSimulationError').mockReturnValue(false);
-      vi.spyOn(SorobanRpc.Api, 'isSimulationSuccess').mockReturnValue(true);
+      vi.spyOn(rpc.Api, 'isSimulationError').mockReturnValue(false);
+      vi.spyOn(rpc.Api, 'isSimulationSuccess').mockReturnValue(true);
 
       // Use fake timers
       vi.useFakeTimers();
@@ -399,7 +399,7 @@ describe('ContractUpdater', () => {
       const getTransactionMock = vi
         .spyOn((timeoutUpdater as any).server, 'getTransaction')
         .mockResolvedValue({
-          status: SorobanRpc.Api.GetTransactionStatus.NOT_FOUND,
+          status: rpc.Api.GetTransactionStatus.NOT_FOUND,
         } as any);
 
       // Start the update

@@ -5,7 +5,7 @@
 import {
   Keypair,
   Contract,
-  SorobanRpc,
+  rpc,
   TransactionBuilder,
   Networks,
   xdr,
@@ -42,14 +42,14 @@ const DEFAULT_CONFIG: Partial<ContractUpdaterConfig> = {
  */
 export class ContractUpdater {
   private config: ContractUpdaterConfig;
-  private server: SorobanRpc.Server;
+  private server: rpc.Server;
   private adminKeypair: Keypair;
   private networkPassphrase: string;
 
   constructor(config: ContractUpdaterConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config } as ContractUpdaterConfig;
 
-    this.server = new SorobanRpc.Server(this.config.rpcUrl);
+    this.server = new rpc.Server(this.config.rpcUrl);
     this.adminKeypair = Keypair.fromSecret(this.config.adminSecretKey);
     this.networkPassphrase = this.config.network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
 
@@ -168,15 +168,15 @@ export class ContractUpdater {
 
     const simulated = await this.server.simulateTransaction(transaction);
 
-    if (SorobanRpc.Api.isSimulationError(simulated)) {
+    if (rpc.Api.isSimulationError(simulated)) {
       throw new Error(`Simulation failed: ${simulated.error}`);
     }
 
-    if (!SorobanRpc.Api.isSimulationSuccess(simulated)) {
+    if (!rpc.Api.isSimulationSuccess(simulated)) {
       throw new Error('Simulation did not succeed');
     }
 
-    const prepared = SorobanRpc.assembleTransaction(transaction, simulated).build();
+    const prepared = rpc.assembleTransaction(transaction, simulated).build();
     prepared.sign(this.adminKeypair);
 
     const response = await this.server.sendTransaction(prepared);
@@ -192,7 +192,7 @@ export class ContractUpdater {
     let attempts = 0;
 
     while (
-      getResponse.status === SorobanRpc.Api.GetTransactionStatus.NOT_FOUND &&
+      getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND &&
       attempts < MAX_POLL_ATTEMPTS
     ) {
       await this.sleep(1000);
@@ -209,7 +209,7 @@ export class ContractUpdater {
       throw new Error(`Transaction polling timed out after ${MAX_POLL_ATTEMPTS} attempts`);
     }
 
-    if (getResponse.status === SorobanRpc.Api.GetTransactionStatus.FAILED) {
+    if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
       throw new Error(`Transaction failed on-chain`);
     }
 

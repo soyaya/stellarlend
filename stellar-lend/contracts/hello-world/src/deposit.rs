@@ -49,6 +49,8 @@ pub enum DepositError {
     Overflow = 6,
     /// Reentrancy detected
     Reentrancy = 7,
+    /// Caller is not authorized
+    Unauthorized = 8,
 }
 
 /// Storage keys for deposit-related data
@@ -176,6 +178,19 @@ pub struct ProtocolAnalytics {
     pub total_borrows: i128,
     /// Total protocol value locked
     pub total_value_locked: i128,
+}
+
+/// Set per-asset deposit parameters (admin-only). Caller must already be verified.
+pub fn set_asset_params(
+    env: &Env,
+    _caller: Address,
+    asset: Address,
+    params: AssetParams,
+) -> Result<(), DepositError> {
+    env.storage()
+        .persistent()
+        .set(&DepositDataKey::AssetParams(asset), &params);
+    Ok(())
 }
 
 /// Deposit collateral function

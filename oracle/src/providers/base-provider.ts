@@ -68,19 +68,27 @@ export abstract class BasePriceProvider {
   abstract fetchPrice(asset: string): Promise<RawPriceData>;
 
   /**
-   * Fetch prices for multiple assets
-   * Can be overridden for batch API calls
+   * Fetch prices for multiple assets in parallel with a concurrency limit.
+   * Failed fetches are logged and skipped without blocking successful ones.
    */
   async fetchPrices(assets: string[]): Promise<RawPriceData[]> {
+    const concurrency = this.config.concurrencyLimit ?? 5;
     const results: RawPriceData[] = [];
 
-    for (const asset of assets) {
-      try {
-        await this.enforceRateLimit();
-        const price = await this.fetchPrice(asset);
-        results.push(price);
-      } catch (error) {
-        logger.error(`Failed to fetch ${asset} from ${this.name}`, { error });
+    for (let i = 0; i < assets.length; i += concurrency) {
+      const batch = assets.slice(i, i + concurrency);
+      const settled = await Promise.allSettled(
+        batch.map(async (asset) => {
+          await this.enforceRateLimit();
+          return this.fetchPrice(asset);
+        })
+      );
+      for (const outcome of settled) {
+        if (outcome.status === 'fulfilled') {
+          results.push(outcome.value);
+        } else {
+          logger.error(`Failed to fetch price from ${this.name}`, { error: outcome.reason });
+        }
       }
     }
 

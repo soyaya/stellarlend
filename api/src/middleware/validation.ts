@@ -76,6 +76,36 @@ export const prepareValidation = createLendingValidation();
 
 export const submitValidation = [
   body('signedXdr').isString().notEmpty().withMessage('signedXdr is required'),
+  body('operation').optional().isIn(VALID_OPERATIONS).withMessage(`Operation must be one of: ${VALID_OPERATIONS.join(', ')}`),
+  body('userAddress').optional().custom((value) => {
+    if (value && !StrKey.isValidEd25519PublicKey(value)) {
+      throw new Error('Invalid Stellar address');
+    }
+    return true;
+  }),
+  body('amount').optional().custom((value) => {
+    if (!value) return true;
+    
+    const errMsg = 'Amount must be a valid positive integer';
+    try {
+      const str = String(value).trim();
+      if (!/^\+?\d+$/.test(str)) {
+        throw new Error(errMsg);
+      }
+      const amount = BigInt(str);
+      if (amount <= 0n) {
+        throw new Error(errMsg);
+      }
+      const maxI128 = (1n << 127n) - 1n;
+      if (amount > maxI128) {
+        throw new Error(errMsg);
+      }
+      return true;
+    } catch {
+      throw new Error(errMsg);
+    }
+  }),
+  body('assetAddress').optional().isString().notEmpty().withMessage('Asset address must be a string'),
   validateRequest,
 ];
 

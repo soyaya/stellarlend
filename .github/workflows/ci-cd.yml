@@ -15,8 +15,6 @@ jobs:
   # Smart Contracts (Rust / Soroban)
   # ─────────────────────────────────────────────
   contracts:
-    # TODO: Contracts have pre-existing compilation errors (170 on main).
-    # This job is set to continue-on-error until the smart contracts are fixed.
     name: Contracts — Lint, Build, Test
     runs-on: ubuntu-latest
     env:
@@ -61,6 +59,19 @@ jobs:
         run: |
           cd stellar-lend
           cargo test --verbose
+
+      - name: Run cross-contract tests
+        run: |
+          cd stellar-lend
+          cargo test --package hello-world --lib cross_contract_test 2>&1 | tee cross-contract-test-report.txt
+          grep "test result:" cross-contract-test-report.txt
+
+      - name: Upload cross-contract test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-contract-test-report
+          path: stellar-lend/cross-contract-test-report.txt
 
       - name: Run security audit
         run: |
@@ -132,8 +143,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run tests
-        run: |
-          npm test || echo "::warning::API tests have pre-existing failures that need to be fixed"
+        run: npm test
 
       - name: Build
         run: npm run build
@@ -151,9 +161,6 @@ jobs:
   oracle:
     name: Oracle — Lint, Test, Build
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18, 20]
     defaults:
       run:
         working-directory: oracle
@@ -161,10 +168,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 20
 
       - name: Install dependencies
         run: npm ci
@@ -182,14 +189,13 @@ jobs:
         run: npm test
 
       - name: Run tests with coverage
-        if: matrix.node-version == 20
         run: npm run test:coverage
 
       - name: Build
         run: npm run build
 
       - name: Upload coverage
-        if: always() && matrix.node-version == 20
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: oracle-coverage

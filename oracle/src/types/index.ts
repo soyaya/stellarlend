@@ -81,6 +81,7 @@ export interface ProviderConfig {
     maxRequests: number;
     windowMs: number;
   };
+  concurrencyLimit?: number;
 }
 
 /**

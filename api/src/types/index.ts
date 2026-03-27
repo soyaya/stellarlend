@@ -38,6 +38,10 @@ export interface PrepareResponse {
 
 export interface SubmitRequest {
   signedXdr: string;
+  operation?: LendingOperation;
+  userAddress?: string;
+  amount?: string;
+  assetAddress?: string;
 }
 
 export interface TransactionResponse {

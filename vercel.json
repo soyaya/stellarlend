@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd api && npm install && npm run build",
+  "buildCommand": "cd api && npm ci && npm run build",
   "outputDirectory": "api/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/src/vercel.ts" }
@@ -9,5 +9,11 @@
     "api/src/vercel.ts": {
       "runtime": "@vercel/node@3"
     }
+  },
+  "github": {
+    "silent": true
+  },
+  "env": {
+    "NODE_ENV": "production"
   }
 }

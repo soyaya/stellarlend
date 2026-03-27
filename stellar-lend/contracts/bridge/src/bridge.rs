@@ -1,4 +1,3 @@
-#![allow(unused_variables)]
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, log, symbol_short, Address,
     Env, String, Symbol, Vec, I256,
@@ -65,10 +64,10 @@ pub struct BridgeWithdrawalEvent {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-#[allow(dead_code)]
 const MAX_FEE_BPS: u64 = 1_000; // 10 % ceiling
-#[allow(dead_code)]
+
 const MAX_ID_LEN: u32 = 64;
+
 #[allow(dead_code)]
 const ADMIN_KEY: Symbol = symbol_short!("ADMIN");
 
@@ -92,11 +91,9 @@ pub enum DataKey {
 }
 
 #[contract]
-#[allow(dead_code)]
 pub struct BridgeContract;
 
 #[contractimpl]
-#[allow(dead_code)]
 impl BridgeContract {
     pub fn init(env: Env, admin: Address) -> Result<(), ContractError> {
         if env.storage().instance().has(&ADMIN_KEY) {
@@ -129,14 +126,7 @@ impl BridgeContract {
         if len == 0 || len > MAX_ID_LEN {
             return Err(ContractError::InvalidBridgeIdLen);
         }
-        // // Convert to soroban Bytes and iterate each byte
-        // let bytes = Bytes::from(id);
-        // for i in 0..bytes.len() {
-        //     let b = bytes.get(i).unwrap();
-        //     if !matches!(b, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_') {
-        //         return Err(ContractError::InvalidBridgeIdChar);
-        //     }
-        // }
+
         Ok(())
     }
 

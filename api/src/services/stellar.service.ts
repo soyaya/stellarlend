@@ -50,6 +50,33 @@ export class StellarService {
     }
   }
 
+  private async buildTransaction(
+    operation: LendingOperation,
+    userAddress: string,
+    assetAddress: string | undefined,
+    amount: string
+  ): Promise<string> {
+    const account = await this.getAccount(userAddress);
+    const contract = new Contract(this.contractId);
+
+    const params = [
+      new Address(userAddress).toScVal(),
+      assetAddress ? new Address(assetAddress).toScVal() : xdr.ScVal.scvVoid(),
+      nativeToScVal(BigInt(amount), { type: 'i128' }),
+    ];
+
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(contract.call(CONTRACT_METHODS[operation], ...params))
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    const preparedTx = await this.sorobanServer.prepareTransaction(tx);
+    return preparedTx.toXDR();
+  }
+
   async buildUnsignedTransaction(
     operation: LendingOperation,
     userAddress: string,
@@ -57,25 +84,7 @@ export class StellarService {
     amount: string
   ): Promise<string> {
     try {
-      const account = await this.getAccount(userAddress);
-      const contract = new Contract(this.contractId);
-
-      const params = [
-        new Address(userAddress).toScVal(),
-        assetAddress ? new Address(assetAddress).toScVal() : xdr.ScVal.scvVoid(),
-        nativeToScVal(BigInt(amount), { type: 'i128' }),
-      ];
-
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.networkPassphrase,
-      })
-        .addOperation(contract.call(CONTRACT_METHODS[operation], ...params))
-        .setTimeout(TX_TIMEOUT_SECONDS)
-        .build();
-
-      const preparedTx = await this.sorobanServer.prepareTransaction(tx);
-      return preparedTx.toXDR();
+      return await this.buildTransaction(operation, userAddress, assetAddress, amount);
     } catch (error) {
       logger.error(`Failed to build unsigned ${operation} transaction:`, error);
       throw new InternalServerError(`Failed to build ${operation} transaction`);

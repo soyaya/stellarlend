@@ -30,8 +30,8 @@ pub mod treasury;
 pub mod types;
 pub mod withdraw;
 
-use crate::analytics::AnalyticsError;
 use crate::deposit::Position;
+use crate::errors::LendingError;
 use crate::interest_rate::InterestRateError;
 use crate::risk_management::RiskManagementError;
 
@@ -55,7 +55,7 @@ impl HelloContract {
         proposal_threshold: Option<i128>,
         timelock_duration: Option<u64>,
         default_voting_threshold: Option<i128>,
-    ) -> Result<(), governance::GovernanceError> {
+    ) -> Result<(), LendingError> {
         governance::initialize(
             &env,
             admin,
@@ -67,11 +67,12 @@ impl HelloContract {
             timelock_duration,
             default_voting_threshold,
         )
+        .map_err(Into::into)
     }
 
-    pub fn initialize(env: Env, admin: Address) -> Result<(), RiskManagementError> {
+    pub fn initialize(env: Env, admin: Address) -> Result<(), LendingError> {
         if crate::admin::has_admin(&env) {
-            return Err(RiskManagementError::Unauthorized);
+            return Err(LendingError::Unauthorized);
         }
         crate::admin::set_admin(&env, admin.clone(), None)
             .map_err(|_| RiskManagementError::Unauthorized)?;
@@ -92,8 +93,8 @@ impl HelloContract {
         env: Env,
         caller: Address,
         new_admin: Address,
-    ) -> Result<(), admin::AdminError> {
-        admin::set_admin(&env, new_admin, Some(caller))
+    ) -> Result<(), LendingError> {
+        admin::set_admin(&env, new_admin, Some(caller)).map_err(Into::into)
     }
 
     pub fn deposit_collateral(
@@ -101,8 +102,8 @@ impl HelloContract {
         user: Address,
         asset: Option<Address>,
         amount: i128,
-    ) -> Result<i128, deposit::DepositError> {
-        deposit::deposit_collateral(&env, user, asset, amount)
+    ) -> Result<i128, LendingError> {
+        deposit::deposit_collateral(&env, user, asset, amount).map_err(Into::into)
     }
 
     pub fn set_risk_params(
@@ -112,7 +113,7 @@ impl HelloContract {
         liquidation_threshold: Option<i128>,
         close_factor: Option<i128>,
         liquidation_incentive: Option<i128>,
-    ) -> Result<(), RiskManagementError> {
+    ) -> Result<(), LendingError> {
         // Authorization is handled by risk_management::require_admin.
         risk_management::require_admin(&env, &caller)?;
         risk_params::set_risk_params(
@@ -122,7 +123,9 @@ impl HelloContract {
             close_factor,
             liquidation_incentive,
         )
-        .map_err(|_| RiskManagementError::InvalidParameter)
+        .map_err(|_| RiskManagementError::InvalidParameter)?;
+
+        Ok(())
     }
 
     pub fn borrow_asset(
@@ -130,8 +133,8 @@ impl HelloContract {
         user: Address,
         asset: Option<Address>,
         amount: i128,
-    ) -> Result<i128, borrow::BorrowError> {
-        borrow::borrow_asset(&env, user, asset, amount)
+    ) -> Result<i128, LendingError> {
+        borrow::borrow_asset(&env, user, asset, amount).map_err(Into::into)
     }
 
     pub fn repay_debt(
@@ -139,8 +142,8 @@ impl HelloContract {
         user: Address,
         asset: Option<Address>,
         amount: i128,
-    ) -> Result<(i128, i128, i128), repay::RepayError> {
-        repay::repay_debt(&env, user, asset, amount)
+    ) -> Result<(i128, i128, i128), LendingError> {
+        repay::repay_debt(&env, user, asset, amount).map_err(Into::into)
     }
 
     pub fn withdraw_collateral(
@@ -148,8 +151,8 @@ impl HelloContract {
         user: Address,
         asset: Option<Address>,
         amount: i128,
-    ) -> Result<i128, withdraw::WithdrawError> {
-        withdraw::withdraw_collateral(&env, user, asset, amount)
+    ) -> Result<i128, LendingError> {
+        withdraw::withdraw_collateral(&env, user, asset, amount).map_err(Into::into)
     }
 
     pub fn liquidate(
@@ -159,7 +162,7 @@ impl HelloContract {
         debt_asset: Option<Address>,
         collateral_asset: Option<Address>,
         debt_amount: i128,
-    ) -> Result<(i128, i128, i128), liquidate::LiquidationError> {
+    ) -> Result<(i128, i128, i128), LendingError> {
         liquidator.require_auth();
         liquidate::liquidate(
             &env,
@@ -169,16 +172,18 @@ impl HelloContract {
             collateral_asset,
             debt_amount,
         )
+        .map_err(Into::into)
     }
 
     pub fn set_emergency_pause(
         env: Env,
         caller: Address,
         paused: bool,
-    ) -> Result<(), RiskManagementError> {
+    ) -> Result<(), LendingError> {
         // Authorization is handled by risk_management::require_admin.
         risk_management::require_admin(&env, &caller)?;
         risk_management::set_emergency_pause(&env, caller, paused)
+            .map_err(Into::into)
     }
 
     pub fn execute_flash_loan(
@@ -187,8 +192,8 @@ impl HelloContract {
         asset: Address,
         amount: i128,
         callback: Address,
-    ) -> Result<i128, flash_loan::FlashLoanError> {
-        flash_loan::execute_flash_loan(&env, user, asset, amount, callback)
+    ) -> Result<i128, LendingError> {
+        flash_loan::execute_flash_loan(&env, user, asset, amount, callback).map_err(Into::into)
     }
 
     pub fn repay_flash_loan(
@@ -196,38 +201,39 @@ impl HelloContract {
         user: Address,
         asset: Address,
         amount: i128,
-    ) -> Result<(), flash_loan::FlashLoanError> {
-        flash_loan::repay_flash_loan(&env, user, asset, amount)
+    ) -> Result<(), LendingError> {
+        flash_loan::repay_flash_loan(&env, user, asset, amount).map_err(Into::into)
     }
 
     pub fn can_be_liquidated(
         env: Env,
         collateral_value: i128,
         debt_value: i128,
-    ) -> Result<bool, risk_params::RiskParamsError> {
-        risk_params::can_be_liquidated(&env, collateral_value, debt_value)
+    ) -> Result<bool, LendingError> {
+        risk_params::can_be_liquidated(&env, collateral_value, debt_value).map_err(Into::into)
     }
 
     pub fn get_max_liquidatable_amount(
         env: Env,
         debt_value: i128,
-    ) -> Result<i128, risk_params::RiskParamsError> {
-        risk_params::get_max_liquidatable_amount(&env, debt_value)
+    ) -> Result<i128, LendingError> {
+        risk_params::get_max_liquidatable_amount(&env, debt_value).map_err(Into::into)
     }
 
     pub fn get_liquidation_incentive_amount(
         env: Env,
         liquidated_amount: i128,
-    ) -> Result<i128, risk_params::RiskParamsError> {
-        risk_params::get_liquidation_incentive_amount(&env, liquidated_amount)
+    ) -> Result<i128, LendingError> {
+        risk_params::get_liquidation_incentive_amount(&env, liquidated_amount).map_err(Into::into)
     }
 
     pub fn require_min_collateral_ratio(
         env: Env,
         collateral_value: i128,
         debt_value: i128,
-    ) -> Result<(), risk_params::RiskParamsError> {
+    ) -> Result<(), LendingError> {
         risk_params::require_min_collateral_ratio(&env, collateral_value, debt_value)
+            .map_err(Into::into)
     }
 
     // -------------------------------------------------------------------------
@@ -239,8 +245,8 @@ impl HelloContract {
         env: Env,
         caller: Address,
         treasury: Address,
-    ) -> Result<(), treasury::TreasuryError> {
-        treasury::set_treasury(&env, caller, treasury)
+    ) -> Result<(), LendingError> {
+        treasury::set_treasury(&env, caller, treasury).map_err(Into::into)
     }
 
     /// Return the configured treasury address
@@ -260,8 +266,8 @@ impl HelloContract {
         asset: Option<Address>,
         recipient: Address,
         amount: i128,
-    ) -> Result<(), treasury::TreasuryError> {
-        treasury::claim_reserves(&env, caller, asset, recipient, amount)
+    ) -> Result<(), LendingError> {
+        treasury::claim_reserves(&env, caller, asset, recipient, amount).map_err(Into::into)
     }
 
     /// Update protocol fee percentages (admin-only)
@@ -270,7 +276,7 @@ impl HelloContract {
         caller: Address,
         interest_fee_bps: i128,
         liquidation_fee_bps: i128,
-    ) -> Result<(), treasury::TreasuryError> {
+    ) -> Result<(), LendingError> {
         treasury::set_fee_config(
             &env,
             caller,
@@ -279,6 +285,7 @@ impl HelloContract {
                 liquidation_fee_bps,
             },
         )
+        .map_err(Into::into)
     }
 
     /// Return the current fee configuration
@@ -312,16 +319,47 @@ impl HelloContract {
     // -------------------------------------------------------------------------
 
     /// Read-only user health factor query (collateral/debt in basis points).
-    pub fn get_health_factor(env: Env, user: Address) -> Result<i128, AnalyticsError> {
-        analytics::calculate_health_factor(&env, &user)
+    pub fn get_health_factor(env: Env, user: Address) -> Result<i128, LendingError> {
+        analytics::calculate_health_factor(&env, &user).map_err(Into::into)
     }
 
     /// Read-only user position query.
-    pub fn get_user_position(env: Env, user: Address) -> Result<Position, AnalyticsError> {
-        analytics::get_user_position_summary(&env, &user)
+    pub fn get_user_position(env: Env, user: Address) -> Result<Position, LendingError> {
+        analytics::get_user_position_summary(&env, &user).map_err(Into::into)
+    }
+
+    // -------------------------------------------------------------------------
+    // Asset Configuration
+    // -------------------------------------------------------------------------
+
+    /// Set per-asset deposit/collateral parameters (admin-only).
+    pub fn update_asset_config(
+        env: Env,
+        asset: Address,
+        params: deposit::AssetParams,
+    ) -> Result<(), LendingError> {
+        let admin = crate::admin::get_admin(&env).ok_or(LendingError::Unauthorized)?;
+        admin.require_auth();
+        deposit::set_asset_params(&env, admin, asset, params).map_err(Into::into)
+    }
+
+    // -------------------------------------------------------------------------
+    // Flash Loan Configuration
+    // -------------------------------------------------------------------------
+
+    /// Configure flash loan parameters (admin-only).
+    pub fn configure_flash_loan(
+        env: Env,
+        caller: Address,
+        config: flash_loan::FlashLoanConfig,
+    ) -> Result<(), LendingError> {
+        flash_loan::set_flash_loan_config(&env, caller, config).map_err(Into::into)
     }
 }
 
+#[cfg(test)]
+#[path = "tests/cross_contract_test.rs"]
+mod cross_contract_test;
 #[cfg(test)]
 mod flash_loan_test;
 #[cfg(test)]
