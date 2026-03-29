@@ -76,6 +76,14 @@ export interface HealthCheckResponse {
   };
 }
 
+export interface ProtocolStatsResponse {
+  totalDeposits: string;
+  totalBorrows: string;
+  utilizationRate: string;
+  numberOfUsers: number;
+  tvl: string;
+}
+
 export enum TransactionStatus {
   PENDING = 'pending',
   SUCCESS = 'success',

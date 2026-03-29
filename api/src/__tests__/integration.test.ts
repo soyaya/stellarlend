@@ -1,5 +1,6 @@
 // Mock StellarService before importing app
 import { StellarService } from '../services/stellar.service';
+import { idempotencyStore } from '../middleware/idempotency';
 jest.mock('../services/stellar.service');
 
 // Robust global Axios mock to prevent real network calls
@@ -8,7 +9,7 @@ jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 import request from 'supertest';
-import app from '../app';
+import app, { resetRateLimiters } from '../app';
 
 const VALID_ADDRESS = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
 const VALID_AMOUNT = '10000000';
@@ -17,6 +18,7 @@ const mockStellarService: jest.Mocked<StellarService> = {
   buildUnsignedTransaction: jest.fn(),
   submitTransaction: jest.fn(),
   monitorTransaction: jest.fn(),
+  getProtocolStats: jest.fn(),
   healthCheck: jest.fn(),
 } as any;
 
@@ -36,8 +38,10 @@ beforeAll(() => {
   mockedAxios.request.mockResolvedValue(axiosResponse);
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
+  idempotencyStore.clear();
+  await resetRateLimiters();
   // Default happy-path mock responses
   mockStellarService.buildUnsignedTransaction.mockResolvedValue('unsigned_xdr_string');
   mockStellarService.submitTransaction.mockResolvedValue({
@@ -50,6 +54,13 @@ beforeEach(() => {
     transactionHash: 'abc123txhash',
     status: 'success',
     ledger: 12345,
+  });
+  mockStellarService.getProtocolStats.mockResolvedValue({
+    totalDeposits: '1000000',
+    totalBorrows: '500000',
+    utilizationRate: '0.50',
+    numberOfUsers: 150,
+    tvl: '1500000',
   });
   mockStellarService.healthCheck.mockResolvedValue({ horizon: true, sorobanRpc: true });
 });
@@ -284,6 +295,56 @@ describe('Edge Cases', () => {
 
 // ─── 4. Security Headers ──────────────────────────────────────────────────────
 
+describe('Protocol Stats', () => {
+  it('returns protocol statistics with cache headers', async () => {
+    const res = await request(app).get('/api/protocol/stats');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      totalDeposits: '1000000',
+      totalBorrows: '500000',
+      utilizationRate: '0.50',
+      numberOfUsers: 150,
+      tvl: '1500000',
+    });
+    expect(res.headers['cache-control']).toBe('public, max-age=30');
+  });
+});
+
+describe('Idempotency', () => {
+  const idemKey = '123e4567-e89b-12d3-a456-426614174000';
+
+  it('replays cached submit responses for duplicate POST requests', async () => {
+    const first = await request(app)
+      .post('/api/lending/submit')
+      .set('Idempotency-Key', idemKey)
+      .send({ signedXdr: 'signed_xdr_payload' });
+
+    const second = await request(app)
+      .post('/api/lending/submit')
+      .set('Idempotency-Key', idemKey)
+      .send({ signedXdr: 'signed_xdr_payload' });
+
+    expect(first.status).toBe(200);
+    expect(first.headers['idempotency-status']).toBe('created');
+    expect(second.status).toBe(200);
+    expect(second.headers['idempotency-status']).toBe('cached');
+    expect(second.body).toEqual(first.body);
+    expect(mockStellarService.submitTransaction).toHaveBeenCalledTimes(1);
+    expect(mockStellarService.monitorTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects invalid idempotency keys', async () => {
+    const res = await request(app)
+      .post('/api/lending/submit')
+      .set('Idempotency-Key', 'not-a-uuid')
+      .send({ signedXdr: 'signed_xdr_payload' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Idempotency-Key/i);
+  });
+});
+
 describe('Security Headers', () => {
   it('includes x-content-type-options header', async () => {
     const res = await request(app).get('/api/health');
@@ -415,8 +476,8 @@ describe('Per-User Rate Limiting', () => {
     // Make requests without userAddress - should fall back to IP limiting
     const requestsWithoutAddress = Array.from({ length: 5 }, () =>
       request(app)
-        .get('/api/lending/prepare/deposit')
-        .query({ amount: VALID_AMOUNT }) // No userAddress
+        .post('/api/lending/submit')
+        .send({ signedXdr: 'signed_xdr_payload' }) // No userAddress
     );
 
     const responses = await Promise.all(requestsWithoutAddress);
@@ -506,7 +567,7 @@ describe('IP-based Rate Limiting (Outer Layer)', () => {
     // We'll make requests to different endpoints to ensure the outer layer is active
     
     const requests = Array.from({ length: 105 }, () =>
-      Promise.any([
+      Promise.race([
         request(app).get('/api/health'),
         request(app).get('/api/lending/prepare/deposit').query({ 
           userAddress: VALID_ADDRESS, 
@@ -517,11 +578,11 @@ describe('IP-based Rate Limiting (Outer Layer)', () => {
     );
 
     const responses = await Promise.all(requests);
-    const statuses = responses.map(r => r.status);
+    const statuses = responses.map((r: { status: number }) => r.status);
     
     // Should have some successful requests
-    expect(statuses.some(s => s === 200)).toBe(true);
+    expect(statuses.some((s: number) => s === 200)).toBe(true);
     // Should have some rate limited requests (429)
-    expect(statuses.some(s => s === 429)).toBe(true);
+    expect(statuses.some((s: number) => s === 429)).toBe(true);
   });
 });

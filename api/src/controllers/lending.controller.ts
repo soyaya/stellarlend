@@ -1,6 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { StellarService } from '../services/stellar.service';
-import { LendingOperation, PrepareResponse, SubmitRequest } from '../types';
+import {
+  LendingOperation,
+  PrepareResponse,
+  SubmitRequest,
+  ProtocolStatsResponse,
+} from '../types';
+import { config } from '../config';
 import logger from '../utils/logger';
 
 export const prepare = async (req: Request, res: Response, next: NextFunction) => {
@@ -74,6 +80,22 @@ export const healthCheck = async (req: Request, res: Response, next: NextFunctio
       timestamp: new Date().toISOString(),
       services,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const protocolStats = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const stellarService = new StellarService();
+    const stats: ProtocolStatsResponse = await stellarService.getProtocolStats();
+
+    res.setHeader(
+      'Cache-Control',
+      `public, max-age=${Math.floor(config.cache.protocolStatsTtlMs / 1000)}`
+    );
+
+    return res.status(200).json(stats);
   } catch (error) {
     next(error);
   }

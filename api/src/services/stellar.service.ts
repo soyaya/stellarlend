@@ -6,13 +6,15 @@ import {
   nativeToScVal,
   Account,
   BASE_FEE,
+  scValToNative,
 } from '@stellar/stellar-sdk';
 import { Server as SorobanServer } from '@stellar/stellar-sdk/rpc';
 import axios from 'axios';
 import { config } from '../config';
 import logger from '../utils/logger';
 import { InternalServerError } from '../utils/errors';
-import { TransactionResponse, LendingOperation } from '../types';
+import { TransactionResponse, LendingOperation, ProtocolStatsResponse } from '../types';
+import { BoundedTtlCache } from '../utils/boundedTtlCache';
 
 const CONTRACT_METHODS: Record<LendingOperation, string> = {
   deposit: 'deposit_collateral',
@@ -23,12 +25,84 @@ const CONTRACT_METHODS: Record<LendingOperation, string> = {
 
 // Timeout generous enough for client-side signing (5 minutes)
 const TX_TIMEOUT_SECONDS = 300;
+const PROTOCOL_STATS_CACHE_KEY = 'protocol-stats';
+
+const protocolStatsCache = new BoundedTtlCache<ProtocolStatsResponse>({
+  ttlMs: config.cache.protocolStatsTtlMs,
+  maxEntries: 1,
+});
+
+function toIntegerString(value: unknown): string {
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new InternalServerError('Invalid protocol stats value');
+    }
+    return Math.trunc(value).toString();
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  throw new InternalServerError('Unexpected protocol stats payload');
+}
+
+function toSafeNumber(value: unknown): number {
+  if (typeof value === 'number') {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+
+  if (typeof value === 'string') {
+    return parseInt(value, 10);
+  }
+
+  return 0;
+}
+
+function formatBpsAsRatio(value: string): string {
+  const bps = BigInt(value);
+  const scaled = (bps * 100n) / 10000n;
+  const whole = scaled / 100n;
+  const fractional = (scaled % 100n).toString().padStart(2, '0');
+  return `${whole}.${fractional}`;
+}
+
+function decodeSimulationResult(simulation: any): any {
+  const rawValue =
+    simulation?.result?.retval ??
+    simulation?.retval ??
+    simulation?.result?.xdr ??
+    simulation?.results?.[0]?.xdr;
+
+  if (!rawValue) {
+    throw new InternalServerError('Missing Soroban simulation result');
+  }
+
+  if (typeof rawValue === 'string') {
+    return scValToNative(xdr.ScVal.fromXDR(rawValue, 'base64'));
+  }
+
+  return scValToNative(rawValue);
+}
+
+export function clearProtocolStatsCache(): void {
+  protocolStatsCache.clear();
+}
 
 export class StellarService {
   private horizonUrl: string;
   private sorobanRpcUrl: string;
   private networkPassphrase: string;
   private contractId: string;
+  private readOnlySimulationAccount: string;
   private sorobanServer: SorobanServer;
 
   constructor() {
@@ -36,6 +110,7 @@ export class StellarService {
     this.sorobanRpcUrl = config.stellar.sorobanRpcUrl;
     this.networkPassphrase = config.stellar.networkPassphrase;
     this.contractId = config.stellar.contractId;
+    this.readOnlySimulationAccount = config.stellar.readOnlySimulationAccount;
     this.sorobanServer = new SorobanServer(this.sorobanRpcUrl);
   }
 
@@ -88,6 +163,53 @@ export class StellarService {
     } catch (error) {
       logger.error(`Failed to build unsigned ${operation} transaction:`, error);
       throw new InternalServerError(`Failed to build ${operation} transaction`);
+    }
+  }
+
+  private buildReadOnlyTransaction(methodName: string, ...params: any[]): any {
+    const account = new Account(this.readOnlySimulationAccount, '0');
+    const contract = new Contract(this.contractId);
+
+    return new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(contract.call(methodName, ...params))
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+  }
+
+  private async simulateContractCall(methodName: string, ...params: any[]): Promise<any> {
+    const tx = this.buildReadOnlyTransaction(methodName, ...params);
+    const simulation = await (this.sorobanServer as any).simulateTransaction(tx);
+    return decodeSimulationResult(simulation);
+  }
+
+  async getProtocolStats(): Promise<ProtocolStatsResponse> {
+    const cachedResponse = protocolStatsCache.get(PROTOCOL_STATS_CACHE_KEY);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    try {
+      const report = await this.simulateContractCall('get_protocol_report');
+      const metrics = report?.metrics ?? report ?? {};
+
+      const response: ProtocolStatsResponse = {
+        totalDeposits: toIntegerString(metrics.total_deposits ?? metrics.totalDeposits ?? 0),
+        totalBorrows: toIntegerString(metrics.total_borrows ?? metrics.totalBorrows ?? 0),
+        utilizationRate: formatBpsAsRatio(
+          toIntegerString(metrics.utilization_rate ?? metrics.utilizationRate ?? 0)
+        ),
+        numberOfUsers: toSafeNumber(metrics.total_users ?? metrics.totalUsers ?? 0),
+        tvl: toIntegerString(metrics.total_value_locked ?? metrics.totalValueLocked ?? 0),
+      };
+
+      protocolStatsCache.set(PROTOCOL_STATS_CACHE_KEY, response);
+      return response;
+    } catch (error) {
+      logger.error('Failed to fetch protocol stats:', error);
+      throw new InternalServerError('Failed to fetch protocol stats');
     }
   }
 

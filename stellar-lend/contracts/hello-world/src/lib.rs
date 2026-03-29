@@ -323,9 +323,36 @@ impl HelloContract {
         analytics::calculate_health_factor(&env, &user).map_err(Into::into)
     }
 
+    /// Read-only protocol metrics snapshot.
+    pub fn get_protocol_stats(env: Env) -> Result<analytics::ProtocolMetrics, LendingError> {
+        analytics::get_protocol_stats(&env).map_err(Into::into)
+    }
+
+    /// Read-only protocol analytics report.
+    pub fn get_protocol_report(env: Env) -> Result<analytics::ProtocolReport, LendingError> {
+        analytics::generate_protocol_report(&env).map_err(Into::into)
+    }
+
     /// Read-only user position query.
     pub fn get_user_position(env: Env, user: Address) -> Result<Position, LendingError> {
         analytics::get_user_position_summary(&env, &user).map_err(Into::into)
+    }
+
+    /// Read-only user analytics report.
+    pub fn get_user_report(
+        env: Env,
+        user: Address,
+    ) -> Result<analytics::UserReport, LendingError> {
+        analytics::generate_user_report(&env, &user).map_err(Into::into)
+    }
+
+    /// Read-only recent protocol activity feed query.
+    pub fn get_recent_activity(
+        env: Env,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<analytics::ActivityEntry>, LendingError> {
+        analytics::get_recent_activity(&env, limit, offset).map_err(Into::into)
     }
 
     // -------------------------------------------------------------------------

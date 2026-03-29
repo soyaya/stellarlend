@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app from '../app';
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { prepareValidation } from '../middleware/validation';
 import { errorHandler } from '../middleware/errorHandler';
 
@@ -120,7 +120,7 @@ describe('Validation Middleware', () => {
       // Validate middleware acceptance without relying on external Horizon/Soroban availability.
       const testApp = express();
       testApp.use(express.json());
-      testApp.get('/api/lending/prepare/:operation', prepareValidation, (req, res) => {
+      testApp.get('/api/lending/prepare/:operation', prepareValidation, (_req: Request, res: Response) => {
         res.status(200).json({ ok: true });
       });
       testApp.use(errorHandler);

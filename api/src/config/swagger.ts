@@ -70,6 +70,21 @@ const options: swaggerJsdoc.Options = {
           },
           required: ['status', 'timestamp', 'services'],
         },
+        ProtocolStatsResponse: {
+          type: 'object',
+          properties: {
+            totalDeposits: { type: 'string' },
+            totalBorrows: { type: 'string' },
+            utilizationRate: {
+              type: 'string',
+              description: 'Borrowed-to-deposited ratio expressed as a decimal string',
+              example: '0.50',
+            },
+            numberOfUsers: { type: 'integer' },
+            tvl: { type: 'string' },
+          },
+          required: ['totalDeposits', 'totalBorrows', 'utilizationRate', 'numberOfUsers', 'tvl'],
+        },
         ErrorResponse: {
           type: 'object',
           properties: {

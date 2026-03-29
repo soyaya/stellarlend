@@ -6,6 +6,11 @@ StellarLend is a decentralized finance (DeFi) lending protocol built on the Stel
 
 The protocol is built with production-grade security in mind, featuring social recovery, multisig governance, upgrade mechanisms, and comprehensive monitoring and analytics. Whether you're building a DeFi application, integrating lending capabilities, or contributing to the protocol's development, StellarLend offers a complete, auditable, and extensible foundation for decentralized lending on Stellar.
 
+Key operational guides:
+
+- [docs/event-indexing.md](docs/event-indexing.md)
+- [docs/upgrade-mechanism.md](docs/upgrade-mechanism.md)
+
 ---
 
 ## Features
@@ -21,7 +26,7 @@ The protocol is built with production-grade security in mind, featuring social r
 - **Cross-Chain Bridge**: Interface for cross-chain asset transfers with fee management
 - **Governance**: Multisig support for critical parameter changes
 - **Social Recovery**: Guardian-based recovery mechanisms for enhanced security
-- **Upgrade System**: Propose, approve, execute, and rollback contract upgrades
+- **Upgrade Management**: Separate approval and version-tracking manager for governed upgrades, with rollback metadata and explicit operational runbooks
 - **Analytics & Monitoring**: Comprehensive protocol and user analytics with activity feeds
 - **Comprehensive Event Logging**: Emits events for all major protocol actions
 
