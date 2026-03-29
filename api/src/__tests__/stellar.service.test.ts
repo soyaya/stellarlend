@@ -1,4 +1,4 @@
-import { StellarService } from '../services/stellar.service';
+import { StellarService, clearProtocolStatsCache } from '../services/stellar.service';
 import axios from 'axios';
 jest.mock('axios');
 
@@ -126,6 +126,7 @@ const mockPreparedTx = {
 
 const mockSorobanServer = {
   prepareTransaction: jest.fn().mockResolvedValue(mockPreparedTx),
+  simulateTransaction: jest.fn(),
   getHealth: jest.fn().mockResolvedValue({}),
 };
 
@@ -147,9 +148,15 @@ jest.mock('@stellar/stellar-sdk', () => ({
   })),
   Address: jest.fn().mockImplementation(() => ({ toScVal: jest.fn().mockReturnValue({}) })),
   nativeToScVal: jest.fn().mockReturnValue({}),
+  scValToNative: jest.fn().mockImplementation((value) => value),
   BASE_FEE: '100',
   Networks: { TESTNET: 'Test SDF Network ; September 2015' },
-  xdr: { ScVal: { scvVoid: jest.fn().mockReturnValue({}) } },
+  xdr: {
+    ScVal: {
+      scvVoid: jest.fn().mockReturnValue({}),
+      fromXDR: jest.fn().mockImplementation((value) => value),
+    },
+  },
 }));
 
 jest.mock('@stellar/stellar-sdk/rpc', () => ({
@@ -169,16 +176,21 @@ describe('StellarService', () => {
   // so Soroban mocks are fresh without touching axios implementations.
   // -----------------------------------------------------------------------
   beforeEach(() => {
+    clearProtocolStatsCache();
     service = new StellarService();
     // Reset only the Soroban mocks — do NOT call jest.clearAllMocks() here
     // because it would erase the axios implementations set by the outer
     // beforeEach, leaving every axios call with no implementation.
     mockSorobanServer.prepareTransaction.mockReset();
+    mockSorobanServer.simulateTransaction.mockReset();
     mockSorobanServer.getHealth.mockReset();
     mockPreparedTx.sign.mockReset();
     mockPreparedTx.toXDR.mockReset();
     mockPreparedTx.toXDR.mockReturnValue('unsigned_tx_xdr');
     mockSorobanServer.prepareTransaction.mockResolvedValue(mockPreparedTx);
+    mockSorobanServer.simulateTransaction.mockResolvedValue({
+      result: { retval: { metrics: { total_deposits: 0n } } },
+    });
     mockSorobanServer.getHealth.mockResolvedValue({});
   });
 
@@ -529,6 +541,58 @@ describe('StellarService', () => {
 
       expect(result.horizon).toBe(false);
       expect(result.sorobanRpc).toBe(false);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  describe('getProtocolStats', () => {
+    it('should fetch and normalize protocol stats from the contract report', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        result: {
+          retval: {
+            metrics: {
+              total_deposits: 1_000_000n,
+              total_borrows: 500_000n,
+              utilization_rate: 5000n,
+              total_users: 150n,
+              total_value_locked: 1_500_000n,
+            },
+          },
+        },
+      });
+
+      const result = await service.getProtocolStats();
+
+      expect(result).toEqual({
+        totalDeposits: '1000000',
+        totalBorrows: '500000',
+        utilizationRate: '0.50',
+        numberOfUsers: 150,
+        tvl: '1500000',
+      });
+      expect(mockSorobanServer.simulateTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return cached protocol stats within the TTL window', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        result: {
+          retval: {
+            metrics: {
+              total_deposits: 42n,
+              total_borrows: 21n,
+              utilization_rate: 5000n,
+              total_users: 3n,
+              total_value_locked: 84n,
+            },
+          },
+        },
+      });
+
+      const first = await service.getProtocolStats();
+      const second = await service.getProtocolStats();
+
+      expect(first).toEqual(second);
+      expect(mockSorobanServer.simulateTransaction).toHaveBeenCalledTimes(1);
     });
   });
 

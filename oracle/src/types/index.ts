@@ -114,6 +114,7 @@ export interface OracleServiceConfig {
   baseFee: number;
   contractId: string;
   adminSecretKey: string;
+  dryRun?: boolean;
   updateIntervalMs: number;
   maxPriceDeviationPercent: number;
   priceStaleThresholdSeconds: number;

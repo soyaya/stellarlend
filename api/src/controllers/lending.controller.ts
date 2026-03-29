@@ -1,6 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { StellarService } from '../services/stellar.service';
-import { LendingOperation, PrepareResponse, SubmitRequest, TransactionHistoryQuery } from '../types';
+import {
+  LendingOperation,
+  PrepareResponse,
+  SubmitRequest,
+  ProtocolStatsResponse,
+} from '../types';
+import { config } from '../config';
 import logger from '../utils/logger';
 
 export const prepare = async (req: Request, res: Response, next: NextFunction) => {
@@ -79,23 +85,17 @@ export const healthCheck = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const getTransactionHistory = async (req: Request, res: Response, next: NextFunction) => {
+export const protocolStats = async (_req: Request, res: Response, next: NextFunction) => {
   try {
-    const { userAddress } = req.params;
-    const { limit, cursor } = req.query;
-
-    logger.info('Fetching transaction history', { userAddress, limit, cursor });
-
     const stellarService = new StellarService();
-    const query: TransactionHistoryQuery = {
-      userAddress,
-      limit: limit ? parseInt(limit as string) : undefined,
-      cursor: cursor as string,
-    };
+    const stats: ProtocolStatsResponse = await stellarService.getProtocolStats();
 
-    const result = await stellarService.getTransactionHistory(query);
-    
-    return res.status(200).json(result);
+    res.setHeader(
+      'Cache-Control',
+      `public, max-age=${Math.floor(config.cache.protocolStatsTtlMs / 1000)}`
+    );
+
+    return res.status(200).json(stats);
   } catch (error) {
     next(error);
   }

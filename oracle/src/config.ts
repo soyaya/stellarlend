@@ -18,6 +18,36 @@ export type { OracleServiceConfig } from './types/index.js';
 
 dotenv.config();
 
+const booleanFlagSchema = z
+  .union([z.boolean(), z.string()])
+  .optional()
+  .transform((value, ctx) => {
+    if (value === undefined) {
+      return false;
+    }
+
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    const normalized = value.trim().toLowerCase();
+
+    if (['true', '1', 'yes', 'on'].includes(normalized)) {
+      return true;
+    }
+
+    if (['false', '0', 'no', 'off', ''].includes(normalized)) {
+      return false;
+    }
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Expected a boolean value like true/false',
+    });
+
+    return z.NEVER;
+  });
+
 /**
  * Network-specific defaults
  */
@@ -46,6 +76,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().optional().or(z.literal('')),
   CACHE_TTL_SECONDS: z.coerce.number().positive().default(30),
   UPDATE_INTERVAL_MS: z.coerce.number().positive().default(60000),
+  DRY_RUN: booleanFlagSchema,
   MAX_PRICE_DEVIATION_PERCENT: z.coerce.number().positive().default(10),
   PRICE_STALENESS_THRESHOLD_SECONDS: z.coerce.number().positive().default(300),
   CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(3),
@@ -184,6 +215,7 @@ export function loadConfig(): OracleServiceConfig {
     baseFee,
     contractId: env.CONTRACT_ID,
     adminSecretKey: env.ADMIN_SECRET_KEY,
+    dryRun: env.DRY_RUN,
     updateIntervalMs: env.UPDATE_INTERVAL_MS,
     maxPriceDeviationPercent: env.MAX_PRICE_DEVIATION_PERCENT,
     priceStaleThresholdSeconds: env.PRICE_STALENESS_THRESHOLD_SECONDS,

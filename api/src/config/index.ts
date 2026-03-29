@@ -22,6 +22,9 @@ export const config = {
     sorobanRpcUrl: process.env.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
     networkPassphrase: process.env.NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
     contractId: process.env.CONTRACT_ID || '',
+    readOnlySimulationAccount:
+      process.env.READ_ONLY_SIMULATION_ACCOUNT ||
+      'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
   },
   auth: {
     jwtSecret: process.env.JWT_SECRET as string,
@@ -39,6 +42,11 @@ export const config = {
     maxRetries: parseInt(process.env.MAX_RETRIES || '3', 10),
     retryInitialDelayMs: parseInt(process.env.RETRY_INITIAL_DELAY_MS || '1000', 10),
     retryMaxDelayMs: parseInt(process.env.RETRY_MAX_DELAY_MS || '10000', 10),
+  },
+  cache: {
+    idempotencyTtlMs: parseInt(process.env.IDEMPOTENCY_TTL_MS || '86400000', 10),
+    idempotencyMaxEntries: parseInt(process.env.IDEMPOTENCY_MAX_ENTRIES || '1000', 10),
+    protocolStatsTtlMs: parseInt(process.env.PROTOCOL_STATS_TTL_MS || '30000', 10),
   },
   ws: {
     /** Milliseconds between price poll cycles (default 30 s) */

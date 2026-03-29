@@ -21,6 +21,7 @@ afterEach(() => {
 
 // Mock StellarService before importing app
 import { StellarService } from '../services/stellar.service';
+import { idempotencyStore } from '../middleware/idempotency';
 jest.mock('../services/stellar.service');
 const mockStellarService: jest.Mocked<StellarService> = {
   buildUnsignedTransaction: jest.fn().mockResolvedValue('unsigned_xdr_string'),
@@ -34,6 +35,13 @@ const mockStellarService: jest.Mocked<StellarService> = {
     transactionHash: 'mock_tx_hash',
     status: 'success',
     ledger: 12345,
+  }),
+  getProtocolStats: jest.fn().mockResolvedValue({
+    totalDeposits: '1000000',
+    totalBorrows: '500000',
+    utilizationRate: '0.50',
+    numberOfUsers: 150,
+    tvl: '1500000',
   }),
   healthCheck: jest.fn().mockResolvedValue({
     horizon: true,
@@ -65,11 +73,13 @@ jest.mock('../utils/logger');
 const mockLogger = logger as jest.Mocked<typeof logger>;
 
 import request from 'supertest';
-import app from '../app';
+import app, { resetRateLimiters } from '../app';
 
 describe('Lending Controller', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
+    idempotencyStore.clear();
+    await resetRateLimiters();
   });
 
   describe('GET /api/lending/prepare/:operation', () => {
@@ -244,9 +254,11 @@ describe('Lending Controller', () => {
       expect(response.status).toBe(200);
       
       // Verify audit log does not contain any secret fields
-      const auditCall = mockLogger.info.mock.calls.find(call => call[0] === 'AUDIT');
+      const auditCall = (mockLogger.info.mock.calls as Array<any[]>).find(
+        (call) => call[0] === 'AUDIT' && typeof call[1] === 'object' && call[1] !== null
+      );
       expect(auditCall).toBeDefined();
-      const auditData = auditCall![1];
+      const auditData = (auditCall?.[1] ?? {}) as Record<string, unknown>;
       
       // Ensure no secret fields are present
       expect(Object.keys(auditData)).not.toContain('userSecret');
@@ -276,75 +288,53 @@ describe('Lending Controller', () => {
     });
   });
 
-  describe('GET /api/lending/transactions/:userAddress', () => {
-    it('should return transaction history for a valid user address', async () => {
-      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
-      
-      const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}`)
-        .query({ limit: 10 });
+  describe('GET /api/protocol/stats', () => {
+    it('should return protocol statistics', async () => {
+      const response = await request(app).get('/api/protocol/stats');
 
       expect(response.status).toBe(200);
-      expect(response.body.transactions).toBeDefined();
-      expect(Array.isArray(response.body.transactions)).toBe(true);
-      expect(response.body.pagination).toBeDefined();
-      expect(mockStellarService.getTransactionHistory).toHaveBeenCalledWith({
-        userAddress,
-        limit: 10,
-        cursor: undefined,
+      expect(response.body).toEqual({
+        totalDeposits: '1000000',
+        totalBorrows: '500000',
+        utilizationRate: '0.50',
+        numberOfUsers: 150,
+        tvl: '1500000',
       });
+      expect(response.headers['cache-control']).toBe('public, max-age=30');
+    });
+  });
+
+  describe('Idempotency-Key', () => {
+    const idemKey = '123e4567-e89b-12d3-a456-426614174000';
+
+    it('should replay a cached submit response for duplicate POST requests', async () => {
+      const firstResponse = await request(app)
+        .post('/api/lending/submit')
+        .set('Idempotency-Key', idemKey)
+        .send({ signedXdr: 'signed_xdr_string' });
+
+      const secondResponse = await request(app)
+        .post('/api/lending/submit')
+        .set('Idempotency-Key', idemKey)
+        .send({ signedXdr: 'signed_xdr_string' });
+
+      expect(firstResponse.status).toBe(200);
+      expect(firstResponse.headers['idempotency-status']).toBe('created');
+      expect(secondResponse.status).toBe(200);
+      expect(secondResponse.headers['idempotency-status']).toBe('cached');
+      expect(secondResponse.body).toEqual(firstResponse.body);
+      expect(mockStellarService.submitTransaction).toHaveBeenCalledTimes(1);
+      expect(mockStellarService.monitorTransaction).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle pagination with cursor', async () => {
-      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
-      const cursor = 'cursor_123';
-      
+    it('should reject non-UUID idempotency keys', async () => {
       const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}`)
-        .query({ limit: 5, cursor });
+        .post('/api/lending/submit')
+        .set('Idempotency-Key', 'not-a-uuid')
+        .send({ signedXdr: 'signed_xdr_string' });
 
-      expect(response.status).toBe(200);
-      expect(mockStellarService.getTransactionHistory).toHaveBeenCalledWith({
-        userAddress,
-        limit: 5,
-        cursor,
-      });
-    });
-
-    it('should use default limit when not provided', async () => {
-      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
-      
-      const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}`);
-
-      expect(response.status).toBe(200);
-      expect(mockStellarService.getTransactionHistory).toHaveBeenCalledWith({
-        userAddress,
-        limit: undefined,
-        cursor: undefined,
-      });
-    });
-
-    it('should return 500 when service fails', async () => {
-      mockStellarService.getTransactionHistory.mockRejectedValueOnce(
-        new Error('Horizon API error')
-      );
-
-      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
-      
-      const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}`);
-
-      expect(response.status).toBe(500);
-    });
-
-    it('should validate address format and return 400 for invalid addresses', async () => {
-      const invalidAddress = 'INVALID_ADDRESS';
-      
-      const response = await request(app)
-        .get(`/api/lending/transactions/${invalidAddress}`);
-
-      expect(response.status).toBe(500); // Service throws InternalServerError for invalid format
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/Idempotency-Key/i);
     });
   });
 });

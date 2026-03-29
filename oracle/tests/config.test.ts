@@ -61,6 +61,7 @@ describe('Configuration', () => {
       process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
       process.env.CACHE_TTL_SECONDS = '60';
       process.env.UPDATE_INTERVAL_MS = '120000';
+      process.env.DRY_RUN = 'true';
       process.env.MAX_PRICE_DEVIATION_PERCENT = '15';
       process.env.PRICE_STALENESS_THRESHOLD_SECONDS = '600';
       process.env.LOG_LEVEL = 'debug';
@@ -69,9 +70,34 @@ describe('Configuration', () => {
 
       expect(config.cacheTtlSeconds).toBe(60);
       expect(config.updateIntervalMs).toBe(120000);
+      expect(config.dryRun).toBe(true);
       expect(config.maxPriceDeviationPercent).toBe(15);
       expect(config.priceStaleThresholdSeconds).toBe(600);
       expect(config.logLevel).toBe('debug');
+    });
+
+    it('should default DRY_RUN to false when not provided', () => {
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+      delete process.env.DRY_RUN;
+
+      const config = loadConfig();
+
+      expect(config.dryRun).toBe(false);
+    });
+
+    it('should parse boolean-like DRY_RUN values', () => {
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+      process.env.DRY_RUN = '1';
+
+      const enabledConfig = loadConfig();
+      expect(enabledConfig.dryRun).toBe(true);
+
+      process.env.DRY_RUN = 'off';
+
+      const disabledConfig = loadConfig();
+      expect(disabledConfig.dryRun).toBe(false);
     });
 
     it('should throw error when CONTRACT_ID is missing', () => {

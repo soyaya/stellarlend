@@ -3,17 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+
+  <script>
+    const CONFIG = {
+      DOMAIN: "https://stellarlend.com",
+      GITHUB: "https://github.com/Smartdevs17/stellarlend-contracts",
+      API_BASE: "",
+      TWITTER: "@stellarlend"
+    };
+  </script>
+
   <title>StellarLend - Decentralized Lending on Stellar</title>
   <meta name="description" content="StellarLend is a decentralized lending protocol built on Stellar using Soroban smart contracts." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>" />
+
+  <!-- open graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="StellarLend - Decentralized Lending on Stellar">
+  <meta property="og:description" content="Fast, transparent lending powered by Stellar blockchain. Borrow and lend globally.">
+  <meta property="og:url" content="" id="og-url">
+  <meta property="og:image" content="" id="og-image">
+  <meta property="og:site_name" content="StellarLend">
+
+  <!-- twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="StellarLend - Decentralized Lending on Stellar">
+  <meta name="twitter:description" content="Fast, transparent lending powered by Stellar blockchain. Borrow and lend globally.">
+  <meta name="twitter:image" content="" id="twitter-image">
+  <meta name="twitter:site" content="" id="twitter-site">
+
+  <!-- favicons -->
+  <link rel="icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
   <style>
     :root {
       --primary: #6366f1;
-      --primary-dark: #4f46e5;
       --accent: #06b6d4;
       --bg: #0a0a1a;
       --bg-card: #111128;
-      --bg-card-hover: #1a1a3e;
       --text: #e2e8f0;
       --text-muted: #94a3b8;
       --border: #1e293b;
@@ -23,579 +52,79 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
-      line-height: 1.6;
-      overflow-x: hidden;
     }
 
-    /* Navbar */
     nav {
-      position: fixed;
-      top: 0;
-      width: 100%;
       padding: 1rem 2rem;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      z-index: 100;
-      background: rgba(10, 10, 26, 0.85);
-      backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
 
-    .logo {
-      font-size: 1.5rem;
-      font-weight: 700;
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
-
-    .nav-links a {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: color 0.2s;
-    }
-
-    .nav-links a:hover { color: var(--text); }
+    .nav-links { display: flex; gap: 1rem; }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.65rem 1.5rem;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-weight: 600;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
       text-decoration: none;
-      transition: all 0.2s;
-      cursor: pointer;
-      border: none;
+      font-weight: bold;
     }
 
-    .btn-primary {
-      background: var(--gradient);
-      color: white;
-    }
+    .btn-primary { background: var(--gradient); color: #fff; }
+    .btn-outline { border: 1px solid var(--border); color: var(--text); }
 
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-
-    .btn-outline {
-      background: transparent;
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    .btn-outline:hover { border-color: var(--primary); background: rgba(99, 102, 241, 0.1); }
-
-    /* Hero */
     .hero {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       text-align: center;
-      padding: 6rem 2rem 4rem;
-      position: relative;
-    }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 800px;
-      height: 800px;
-      background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .hero-content { max-width: 800px; position: relative; z-index: 1; }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 1rem;
-      border-radius: 50px;
-      background: rgba(99, 102, 241, 0.15);
-      color: var(--primary);
-      font-size: 0.85rem;
-      font-weight: 500;
-      margin-bottom: 2rem;
-      border: 1px solid rgba(99, 102, 241, 0.3);
-    }
-
-    .hero h1 {
-      font-size: clamp(2.5rem, 6vw, 4rem);
-      font-weight: 800;
-      line-height: 1.1;
-      margin-bottom: 1.5rem;
-      letter-spacing: -0.02em;
-    }
-
-    .hero h1 span {
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero p {
-      font-size: 1.2rem;
-      color: var(--text-muted);
-      max-width: 600px;
-      margin: 0 auto 2.5rem;
-    }
-
-    .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-
-    /* Stats */
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1.5rem;
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 0 2rem 4rem;
-    }
-
-    .stat {
-      text-align: center;
-      padding: 1.5rem;
-      border-radius: 12px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-    }
-
-    .stat-value {
-      font-size: 2rem;
-      font-weight: 700;
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .stat-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
-
-    /* Sections */
-    section { padding: 5rem 2rem; }
-
-    .section-header {
-      text-align: center;
-      max-width: 600px;
-      margin: 0 auto 3rem;
-    }
-
-    .section-header h2 {
-      font-size: 2.2rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-      letter-spacing: -0.01em;
-    }
-
-    .section-header p { color: var(--text-muted); font-size: 1.05rem; }
-
-    /* Features */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 1.5rem;
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-
-    .feature-card {
-      padding: 2rem;
-      border-radius: 16px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      transition: all 0.3s;
-    }
-
-    .feature-card:hover {
-      background: var(--bg-card-hover);
-      border-color: rgba(99, 102, 241, 0.3);
-      transform: translateY(-4px);
-    }
-
-    .feature-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      background: var(--gradient);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.5rem;
-      margin-bottom: 1.25rem;
-    }
-
-    .feature-card h3 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.75rem; }
-    .feature-card p { color: var(--text-muted); font-size: 0.95rem; }
-
-    /* How it works */
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 2rem;
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-
-    .step {
-      text-align: center;
-      padding: 2rem 1.5rem;
-    }
-
-    .step-number {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: var(--gradient);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.4rem;
-      font-weight: 700;
-      margin-bottom: 1.25rem;
-    }
-
-    .step h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.75rem; }
-    .step p { color: var(--text-muted); font-size: 0.95rem; }
-
-    /* Architecture */
-    .arch-section { background: var(--bg-card); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-
-    .arch-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-
-    .arch-card {
-      padding: 2rem;
-      border-radius: 12px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-    }
-
-    .arch-card h3 {
-      font-size: 1.1rem;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .arch-card ul {
-      list-style: none;
-      padding: 0;
-    }
-
-    .arch-card li {
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      padding: 0.35rem 0;
-      padding-left: 1.2rem;
-      position: relative;
-    }
-
-    .arch-card li::before {
-      content: '>';
-      position: absolute;
-      left: 0;
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    /* CTA */
-    .cta {
-      text-align: center;
-      padding: 6rem 2rem;
-      position: relative;
-    }
-
-    .cta::before {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 600px;
-      height: 400px;
-      background: radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .cta h2 {
-      font-size: 2.5rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-    }
-
-    .cta p {
-      color: var(--text-muted);
-      font-size: 1.1rem;
-      max-width: 500px;
-      margin: 0 auto 2rem;
-    }
-
-    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-
-    /* Footer */
-    footer {
-      padding: 3rem 2rem;
-      border-top: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .footer-content {
-      max-width: 1100px;
-      margin: 0 auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-
-    .footer-links { display: flex; gap: 1.5rem; }
-
-    .footer-links a {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: color 0.2s;
-    }
-
-    .footer-links a:hover { color: var(--text); }
-
-    .footer-copy { color: var(--text-muted); font-size: 0.85rem; }
-
-    /* Animations */
-    .fade-in {
-      opacity: 0;
-      transform: translateY(20px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-
-    .fade-in.visible { opacity: 1; transform: translateY(0); }
-
-    @media (max-width: 640px) {
-      nav { padding: 1rem; }
-      .nav-links a:not(.btn) { display: none; }
-      .hero-buttons { flex-direction: column; align-items: center; }
-      .footer-content { flex-direction: column; }
+      padding: 5rem 2rem;
     }
   </style>
 </head>
+
 <body>
 
-  <!-- Navbar -->
   <nav>
-    <div class="logo">StellarLend</div>
+    <div>StellarLend</div>
     <div class="nav-links">
       <a href="#features">Features</a>
-      <a href="#how-it-works">How It Works</a>
-      <a href="#architecture">Architecture</a>
-      <a href="https://github.com/Smartdevs17/stellarlend-contracts" target="_blank" class="btn btn-outline">GitHub</a>
+      <a id="github-link" class="btn btn-outline" target="_blank">GitHub</a>
     </div>
   </nav>
 
-  <!-- Hero -->
   <section class="hero">
-    <div class="hero-content">
-      <div class="badge">Built on Stellar / Soroban</div>
-      <h1>Decentralized Lending <span>Protocol on Stellar</span></h1>
-      <p>Supply collateral, borrow assets, and earn yield through transparent, auditable Soroban smart contracts on the Stellar network.</p>
-      <div class="hero-buttons">
-        <a href="https://github.com/Smartdevs17/stellarlend-contracts" target="_blank" class="btn btn-primary">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          View on GitHub
-        </a>
-        <a href="https://api-woad-gamma-93.vercel.app/api/health" target="_blank" class="btn btn-outline">Live API</a>
-      </div>
+    <h1>Decentralized Lending on Stellar</h1>
+    <p>Borrow and lend assets securely using smart contracts.</p>
+
+    <div>
+      <a id="github-btn" class="btn btn-primary" target="_blank">View on GitHub</a>
+      <a id="api-btn" class="btn btn-outline" style="display:none;" target="_blank">Live API</a>
     </div>
   </section>
 
-  <!-- Stats -->
-  <div class="stats fade-in">
-    <div class="stat">
-      <div class="stat-value">Soroban</div>
-      <div class="stat-label">Smart Contract Platform</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">Multi-Asset</div>
-      <div class="stat-label">Collateral Support</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">Flash Loans</div>
-      <div class="stat-label">Instant Liquidity</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">Auditable</div>
-      <div class="stat-label">Open Source</div>
-    </div>
-  </div>
-
-  <!-- Features -->
-  <section id="features">
-    <div class="section-header fade-in">
-      <h2>Protocol Features</h2>
-      <p>A comprehensive DeFi lending protocol with production-grade security and advanced financial primitives.</p>
-    </div>
-    <div class="features-grid">
-      <div class="feature-card fade-in">
-        <div class="feature-icon">&#x1F4B0;</div>
-        <h3>Collateralized Lending</h3>
-        <p>Deposit collateral and borrow against it with support for multiple Stellar asset types and dynamic interest rates.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <div class="feature-icon">&#x26A1;</div>
-        <h3>Flash Loans</h3>
-        <p>Borrow any amount without collateral within a single transaction. Perfect for arbitrage, liquidations, and collateral swaps.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <div class="feature-icon">&#x1F4CA;</div>
-        <h3>Dynamic Interest Rates</h3>
-        <p>Rates automatically adjust based on protocol utilization with configurable parameters for optimal capital efficiency.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <div class="feature-icon">&#x1F6E1;</div>
-        <h3>Risk Management</h3>
-        <p>Admin-configurable risk parameters, partial liquidation with incentives, and emergency pause switches.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <div class="feature-icon">&#x1F310;</div>
-        <h3>Oracle Integration</h3>
-        <p>Real-time price feeds with validation, fallback mechanisms, and caching for reliable asset valuations.</p>
-      </div>
-      <div class="feature-card fade-in">
-        <div class="feature-icon">&#x1F3DB;</div>
-        <h3>Governance</h3>
-        <p>Multisig support for critical parameter changes, social recovery, and upgrade mechanisms with rollback capability.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- How it works -->
-  <section id="how-it-works">
-    <div class="section-header fade-in">
-      <h2>How It Works</h2>
-      <p>Get started with StellarLend in three simple steps.</p>
-    </div>
-    <div class="steps">
-      <div class="step fade-in">
-        <div class="step-number">1</div>
-        <h3>Deposit Collateral</h3>
-        <p>Supply XLM or Stellar tokens as collateral to the protocol. Your assets are locked in auditable Soroban smart contracts.</p>
-      </div>
-      <div class="step fade-in">
-        <div class="step-number">2</div>
-        <h3>Borrow Assets</h3>
-        <p>Borrow against your collateral at dynamic interest rates. The protocol calculates your borrowing power in real time.</p>
-      </div>
-      <div class="step fade-in">
-        <div class="step-number">3</div>
-        <h3>Repay & Earn</h3>
-        <p>Repay your loan at any time. Lenders earn yield from borrower interest, distributed proportionally.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Architecture -->
-  <section id="architecture" class="arch-section">
-    <div class="section-header fade-in">
-      <h2>Architecture</h2>
-      <p>Built for security, transparency, and composability on the Stellar network.</p>
-    </div>
-    <div class="arch-grid">
-      <div class="arch-card fade-in">
-        <h3>&#x1F4DC; Smart Contracts</h3>
-        <ul>
-          <li>Soroban (Rust) on Stellar</li>
-          <li>Lending core with interest accrual</li>
-          <li>Liquidation engine</li>
-          <li>Flash loan module</li>
-          <li>Governance & upgrades</li>
-        </ul>
-      </div>
-      <div class="arch-card fade-in">
-        <h3>&#x1F50C; REST API</h3>
-        <ul>
-          <li>Express.js / TypeScript</li>
-          <li>Stellar Horizon integration</li>
-          <li>Soroban RPC client</li>
-          <li>Rate limiting & auth</li>
-          <li>Comprehensive logging</li>
-        </ul>
-      </div>
-      <div class="arch-card fade-in">
-        <h3>&#x1F52D; Oracle System</h3>
-        <ul>
-          <li>Multi-source price feeds</li>
-          <li>Validation & staleness checks</li>
-          <li>Fallback mechanisms</li>
-          <li>Cached for performance</li>
-          <li>Admin-configurable</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <section class="cta">
-    <h2 class="fade-in">Contribute to StellarLend</h2>
-    <p class="fade-in">StellarLend participates in the Stellar Wave Program via Drips. Pick up issues, contribute code, and earn rewards.</p>
-    <div class="cta-buttons fade-in">
-      <a href="https://github.com/Smartdevs17/stellarlend-contracts/issues" target="_blank" class="btn btn-primary">View Open Issues</a>
-      <a href="https://www.drips.network/" target="_blank" class="btn btn-outline">Drips Network</a>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer>
-    <div class="footer-content">
-      <div class="footer-copy">StellarLend &mdash; Decentralized Lending on Stellar</div>
-      <div class="footer-links">
-        <a href="https://github.com/Smartdevs17/stellarlend-contracts" target="_blank">GitHub</a>
-        <a href="https://github.com/Smartdevs17/stellarlend-contracts/tree/main/docs" target="_blank">Docs</a>
-        <a href="https://www.drips.network/" target="_blank">Drips</a>
-      </div>
-    </div>
+  <footer style="text-align:center; padding:2rem;">
+    <a id="footer-github" target="_blank">GitHub</a> |
+    <a id="footer-docs" target="_blank">Docs</a>
   </footer>
 
+  <!-- Script -->
   <script>
-    // Scroll fade-in animation
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-        }
-      });
-    }, { threshold: 0.1 });
+    document.addEventListener("DOMContentLoaded", () => {
+      // meta tags
+      document.getElementById("og-url").content = CONFIG.DOMAIN;
+      document.getElementById("og-image").content = CONFIG.DOMAIN + "/og-image.jpg";
+      document.getElementById("twitter-image").content = CONFIG.DOMAIN + "/og-image.jpg";
+      document.getElementById("twitter-site").content = CONFIG.TWITTER;
 
-    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+      // gitHub links
+      document.getElementById("github-link").href = CONFIG.GITHUB;
+      document.getElementById("github-btn").href = CONFIG.GITHUB;
+      document.getElementById("footer-github").href = CONFIG.GITHUB;
+      document.getElementById("footer-docs").href = CONFIG.GITHUB + "/tree/main/docs";
 
-    // Smooth scroll for nav links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        document.querySelector(this.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
-      });
     });
   </script>
+
 </body>
 </html>
