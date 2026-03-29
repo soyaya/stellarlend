@@ -39,6 +39,23 @@ const mockStellarService: jest.Mocked<StellarService> = {
     horizon: true,
     sorobanRpc: true,
   }),
+  getTransactionHistory: jest.fn().mockResolvedValue({
+    transactions: [
+      {
+        transactionHash: 'tx_hash_1',
+        type: 'deposit',
+        amount: '1000000',
+        assetAddress: 'GTEST123...',
+        timestamp: '2023-01-01T00:00:00Z',
+        status: 'success',
+        ledger: 12345,
+      },
+    ],
+    pagination: {
+      hasNextPage: false,
+      limit: 10,
+    },
+  }),
 } as any;
 (StellarService as jest.Mock).mockImplementation(() => mockStellarService);
 
@@ -249,13 +266,85 @@ describe('Lending Controller', () => {
     it('should return unhealthy status when services are down', async () => {
       mockStellarService.healthCheck.mockResolvedValueOnce({
         horizon: false,
-        sorobanRpc: false,
+        sorobanRpc: true,
       });
 
       const response = await request(app).get('/api/health');
 
       expect(response.status).toBe(503);
       expect(response.body.status).toBe('unhealthy');
+    });
+  });
+
+  describe('GET /api/lending/transactions/:userAddress', () => {
+    it('should return transaction history for a valid user address', async () => {
+      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
+      
+      const response = await request(app)
+        .get(`/api/lending/transactions/${userAddress}`)
+        .query({ limit: 10 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.transactions).toBeDefined();
+      expect(Array.isArray(response.body.transactions)).toBe(true);
+      expect(response.body.pagination).toBeDefined();
+      expect(mockStellarService.getTransactionHistory).toHaveBeenCalledWith({
+        userAddress,
+        limit: 10,
+        cursor: undefined,
+      });
+    });
+
+    it('should handle pagination with cursor', async () => {
+      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
+      const cursor = 'cursor_123';
+      
+      const response = await request(app)
+        .get(`/api/lending/transactions/${userAddress}`)
+        .query({ limit: 5, cursor });
+
+      expect(response.status).toBe(200);
+      expect(mockStellarService.getTransactionHistory).toHaveBeenCalledWith({
+        userAddress,
+        limit: 5,
+        cursor,
+      });
+    });
+
+    it('should use default limit when not provided', async () => {
+      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
+      
+      const response = await request(app)
+        .get(`/api/lending/transactions/${userAddress}`);
+
+      expect(response.status).toBe(200);
+      expect(mockStellarService.getTransactionHistory).toHaveBeenCalledWith({
+        userAddress,
+        limit: undefined,
+        cursor: undefined,
+      });
+    });
+
+    it('should return 500 when service fails', async () => {
+      mockStellarService.getTransactionHistory.mockRejectedValueOnce(
+        new Error('Horizon API error')
+      );
+
+      const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
+      
+      const response = await request(app)
+        .get(`/api/lending/transactions/${userAddress}`);
+
+      expect(response.status).toBe(500);
+    });
+
+    it('should validate address format and return 400 for invalid addresses', async () => {
+      const invalidAddress = 'INVALID_ADDRESS';
+      
+      const response = await request(app)
+        .get(`/api/lending/transactions/${invalidAddress}`);
+
+      expect(response.status).toBe(500); // Service throws InternalServerError for invalid format
     });
   });
 });

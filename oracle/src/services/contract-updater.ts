@@ -217,14 +217,100 @@ export class ContractUpdater {
   }
 
   /**
-   * Check if the contract is accessible
+   * Comprehensive health check with detailed status
    */
-  async healthCheck(): Promise<boolean> {
+  async healthCheck(): Promise<{
+    overall: boolean;
+    rpc: boolean;
+    admin: boolean;
+    contract: boolean;
+    details: {
+      rpc?: string;
+      admin?: { balance: string; exists: boolean };
+      contract?: string;
+    };
+  }> {
+    const startTime = Date.now();
+    const result = {
+      overall: false,
+      rpc: false,
+      admin: false,
+      contract: false,
+      details: {} as any,
+    };
+
     try {
-      const contract = new Contract(this.config.contractId);
-      return !!contract;
-    } catch {
-      return false;
+      // 1. Check RPC connectivity
+      try {
+        await this.server.getHealth();
+        result.rpc = true;
+        result.details.rpc = 'RPC endpoint reachable';
+      } catch (error) {
+        result.details.rpc = `RPC unreachable: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+
+      // 2. Check admin account exists and has funds
+      try {
+        const adminAccount = await this.server.getAccount(this.adminKeypair.publicKey());
+        result.admin = true;
+        result.details.admin = {
+          exists: true,
+          balance: adminAccount.balances
+            .filter((balance: any) => balance.asset_type === 'native')
+            .map((balance: any) => balance.balance)
+            .join('') || '0',
+        };
+      } catch (error) {
+        result.details.admin = {
+          exists: false,
+          balance: '0',
+        };
+      }
+
+      // 3. Check contract is deployed and accessible
+      try {
+        const contract = new Contract(this.config.contractId);
+        // Try to read from contract to verify it's deployed
+        await this.server.simulateTransaction(
+          new TransactionBuilder(new Account(this.adminKeypair.publicKey(), '1'), {
+            fee: '100',
+            networkPassphrase: this.networkPassphrase,
+          })
+            .addOperation(contract.call('get_asset_price', xdr.ScVal.scvSymbol('XLM')))
+            .setTimeout(0)
+            .build()
+        );
+        result.contract = true;
+        result.details.contract = 'Contract accessible';
+      } catch (error) {
+        result.details.contract = `Contract inaccessible: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+
+      // Overall health is true only if all checks pass
+      result.overall = result.rpc && result.admin && result.contract;
+
+      logger.info('Health check completed', {
+        duration: Date.now() - startTime,
+        overall: result.overall,
+        rpc: result.rpc,
+        admin: result.admin,
+        contract: result.contract,
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Health check failed with unexpected error:', error);
+      return {
+        overall: false,
+        rpc: false,
+        admin: false,
+        contract: false,
+        details: {
+          rpc: 'Health check failed',
+          admin: { exists: false, balance: '0' },
+          contract: 'Health check failed',
+        },
+      };
     }
   }
 

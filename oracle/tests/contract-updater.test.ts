@@ -702,22 +702,105 @@ describe('ContractUpdater', () => {
   });
 
   describe('healthCheck', () => {
-    it('should return true for accessible contract', async () => {
-      const isHealthy = await updater.healthCheck();
+    it('should return detailed health status when all checks pass', async () => {
+      const { SorobanRpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new SorobanRpc.Server('mock');
+      
+      // Mock successful health checks
+      vi.spyOn(mockServer, 'getHealth').mockResolvedValue({ status: 'healthy' });
+      vi.spyOn(mockServer, 'getAccount').mockResolvedValue({
+        balances: [{ asset_type: 'native', balance: '10.5' }],
+      } as any);
+      vi.spyOn(mockServer, 'simulateTransaction').mockResolvedValue({
+        results: [{ xdr: 'mock-xdr' }],
+      } as any);
 
-      expect(isHealthy).toBe(true);
+      const healthStatus = await updater.healthCheck();
+
+      expect(healthStatus.overall).toBe(true);
+      expect(healthStatus.rpc).toBe(true);
+      expect(healthStatus.admin).toBe(true);
+      expect(healthStatus.contract).toBe(true);
+      expect(healthStatus.details.rpc).toBe('RPC endpoint reachable');
+      expect(healthStatus.details.admin?.exists).toBe(true);
+      expect(healthStatus.details.admin?.balance).toBe('10.5');
+      expect(healthStatus.details.contract).toBe('Contract accessible');
     });
 
-    it('should return false when contract creation fails', async () => {
-      const { Contract } = await import('@stellar/stellar-sdk');
+    it('should return failure status when RPC is unreachable', async () => {
+      const { SorobanRpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new SorobanRpc.Server('mock');
+      
+      // Mock RPC failure
+      vi.spyOn(mockServer, 'getHealth').mockRejectedValue(new Error('RPC connection failed'));
 
-      vi.mocked(Contract).mockImplementationOnce(() => {
-        throw new Error('Invalid contract ID');
-      });
+      const healthStatus = await updater.healthCheck();
 
-      const isHealthy = await updater.healthCheck();
+      expect(healthStatus.overall).toBe(false);
+      expect(healthStatus.rpc).toBe(false);
+      expect(healthStatus.details.rpc).toContain('RPC unreachable');
+    });
 
-      expect(isHealthy).toBe(false);
+    it('should return failure status when admin account does not exist', async () => {
+      const { SorobanRpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new SorobanRpc.Server('mock');
+      
+      // Mock successful RPC but failed account check
+      vi.spyOn(mockServer, 'getHealth').mockResolvedValue({ status: 'healthy' });
+      vi.spyOn(mockServer, 'getAccount').mockRejectedValue(new Error('Account not found'));
+
+      const healthStatus = await updater.healthCheck();
+
+      expect(healthStatus.overall).toBe(false);
+      expect(healthStatus.rpc).toBe(true);
+      expect(healthStatus.admin).toBe(false);
+      expect(healthStatus.details.admin?.exists).toBe(false);
+      expect(healthStatus.details.admin?.balance).toBe('0');
+    });
+
+    it('should return failure status when contract is inaccessible', async () => {
+      const { SorobanRpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new SorobanRpc.Server('mock');
+      
+      // Mock successful RPC and account but failed contract access
+      vi.spyOn(mockServer, 'getHealth').mockResolvedValue({ status: 'healthy' });
+      vi.spyOn(mockServer, 'getAccount').mockResolvedValue({
+        balances: [{ asset_type: 'native', balance: '5.0' }],
+      } as any);
+      vi.spyOn(mockServer, 'simulateTransaction').mockRejectedValue(new Error('Contract not deployed'));
+
+      const healthStatus = await updater.healthCheck();
+
+      expect(healthStatus.overall).toBe(false);
+      expect(healthStatus.rpc).toBe(true);
+      expect(healthStatus.admin).toBe(true);
+      expect(healthStatus.contract).toBe(false);
+      expect(healthStatus.details.contract).toContain('Contract inaccessible');
+    });
+
+    it('should complete health check within 5 seconds', async () => {
+      const startTime = Date.now();
+      
+      await updater.healthCheck();
+      
+      const duration = Date.now() - startTime;
+      expect(duration).toBeLessThan(5000);
+    });
+
+    it('should handle unexpected errors gracefully', async () => {
+      const { SorobanRpc } = await import('@stellar/stellar-sdk');
+      const mockServer = new SorobanRpc.Server('mock');
+      
+      // Mock unexpected error during health check
+      vi.spyOn(mockServer, 'getHealth').mockRejectedValue(new Error('Unexpected error'));
+
+      const healthStatus = await updater.healthCheck();
+
+      expect(healthStatus.overall).toBe(false);
+      expect(healthStatus.rpc).toBe(false);
+      expect(healthStatus.admin).toBe(false);
+      expect(healthStatus.contract).toBe(false);
+      expect(healthStatus.details.rpc).toBe('Health check failed');
     });
   });
 

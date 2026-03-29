@@ -116,4 +116,56 @@ router.get('/prepare/:operation', prepareValidation, lendingController.prepare);
  */
 router.post('/submit', submitValidation, lendingController.submit);
 
+/**
+ * @openapi
+ * /lending/transactions/{userAddress}:
+ *   get:
+ *     summary: Get transaction history for a user
+ *     description: Retrieves a paginated list of past lending transactions for a specific user address, filtered by the lending contract operations.
+ *     tags:
+ *       - Lending
+ *     parameters:
+ *       - in: path
+ *         name: userAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Stellar public key (Ed25519) of the user
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Maximum number of transactions to return
+ *       - in: query
+ *         name: cursor
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Pagination cursor for retrieving the next page
+ *     responses:
+ *       200:
+ *         description: Transaction history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TransactionHistoryResponse'
+ *       400:
+ *         description: Validation error or invalid address format
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/transactions/:userAddress', lendingController.getTransactionHistory);
+
 export default router;
