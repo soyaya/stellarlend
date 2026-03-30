@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as lendingController from '../controllers/lending.controller';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * @openapi

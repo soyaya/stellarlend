@@ -89,6 +89,8 @@ export class OracleService {
       rpcUrl: config.stellarRpcUrl,
       contractId: config.contractId,
       adminSecretKey: config.adminSecretKey,
+      baseFee: config.baseFee,
+      maxFee: config.maxFee,
       maxRetries: 3,
       retryDelayMs: 1000,
     });
@@ -248,13 +250,7 @@ export class OracleService {
  * Main entry point
  */
 async function main(): Promise<void> {
-  console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                StellarLend Oracle Service                  ║
-║                                                            ║
-║  Off-chain oracle integration for price data management   ║
-╚═══════════════════════════════════════════════════════════╝
-  `);
+  logger.info('Starting StellarLend Oracle Service');
 
   try {
     // Load configuration
@@ -279,7 +275,7 @@ async function main(): Promise<void> {
     // Start service
     await service.start();
   } catch (error) {
-    console.error('Failed to start oracle service:', error);
+    logger.error('Failed to start oracle service', { error });
     process.exit(1);
   }
 }
@@ -296,7 +292,10 @@ function isExecutedDirectly(): boolean {
 
 // Run only when executed as the entrypoint, not when imported by tests/modules
 if (isExecutedDirectly()) {
-  main().catch(console.error);
+  main().catch((error) => {
+    logger.error('Unhandled oracle service error', { error });
+    process.exit(1);
+  });
 }
 
 // Export for programmatic use

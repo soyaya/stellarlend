@@ -112,6 +112,7 @@ export interface OracleServiceConfig {
   stellarNetwork: 'testnet' | 'mainnet';
   stellarRpcUrl: string;
   baseFee: number;
+  maxFee: number;
   contractId: string;
   adminSecretKey: string;
   dryRun?: boolean;

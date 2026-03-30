@@ -6,6 +6,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContractUpdater, createContractUpdater } from '../src/services/contract-updater.js';
 import type { AggregatedPrice } from '../src/types/index.js';
 
+const transactionBuilderCalls: Array<{ fee: string; networkPassphrase: string }> = [];
+
 // Mock Stellar SDK
 vi.mock('@stellar/stellar-sdk', () => {
   const mockAccount = {
@@ -37,7 +39,7 @@ vi.mock('@stellar/stellar-sdk', () => {
         /* operation */
       }),
     })),
-    SorobanRpc: {
+    rpc: {
       Server: vi.fn().mockImplementation((url: string) => ({
         getAccount: vi.fn().mockResolvedValue(mockAccount),
         simulateTransaction: vi.fn().mockResolvedValue({
@@ -64,7 +66,10 @@ vi.mock('@stellar/stellar-sdk', () => {
         build: () => mockTransaction,
       })),
     },
-    TransactionBuilder: vi.fn().mockImplementation(() => mockTransactionBuilder),
+    TransactionBuilder: vi.fn().mockImplementation((_account, options) => {
+      transactionBuilderCalls.push(options);
+      return mockTransactionBuilder;
+    }),
     Networks: {
       TESTNET: 'Test SDF Network ; September 2015',
       PUBLIC: 'Public Global Stellar Network ; September 2015',
@@ -89,12 +94,15 @@ describe('ContractUpdater', () => {
     rpcUrl: 'https://soroban-testnet.stellar.org',
     contractId: 'CTEST123456789',
     adminSecretKey: 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789',
+    baseFee: 100000,
+    maxFee: 1000000,
     maxRetries: 3,
     retryDelayMs: 100,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    transactionBuilderCalls.length = 0;
     updater = createContractUpdater(mockConfig);
   });
 
@@ -173,6 +181,28 @@ describe('ContractUpdater', () => {
 
       expect(result.success).toBe(true);
       expect(result.price).toBe(smallPrice);
+    });
+
+    it('should apply configured base fee to transactions', async () => {
+      const customFeeUpdater = createContractUpdater({
+        ...mockConfig,
+        baseFee: 250000,
+        maxFee: 500000,
+      });
+
+      await customFeeUpdater.updatePrice('XLM', 150000n, Date.now());
+
+      expect(transactionBuilderCalls.at(-1)?.fee).toBe('250000');
+    });
+
+    it('should reject a base fee higher than max fee', () => {
+      expect(() =>
+        createContractUpdater({
+          ...mockConfig,
+          baseFee: 500001,
+          maxFee: 500000,
+        })
+      ).toThrow('baseFee cannot exceed maxFee');
     });
   });
 
