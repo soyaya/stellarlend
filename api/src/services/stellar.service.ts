@@ -18,8 +18,8 @@ import {
   LendingOperation,
   ProtocolStatsResponse,
   TransactionHistoryItem,
-  TransactionHistoryResponse,
   TransactionHistoryQuery,
+  TransactionHistoryResponse,
 } from '../types';
 import { BoundedTtlCache } from '../utils/boundedTtlCache';
 

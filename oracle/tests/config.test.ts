@@ -258,6 +258,36 @@ describe('Configuration', () => {
       expect(config.baseFee).toBe(150000);
     });
 
+    it('should use default maxFee when STELLAR_MAX_FEE is not provided', () => {
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.maxFee).toBe(1000000);
+    });
+
+    it('should override maxFee when STELLAR_MAX_FEE is provided', () => {
+      process.env.STELLAR_BASE_FEE = '150000';
+      process.env.STELLAR_MAX_FEE = '450000';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.baseFee).toBe(150000);
+      expect(config.maxFee).toBe(450000);
+    });
+
+    it('should reject maxFee lower than baseFee', () => {
+      process.env.STELLAR_BASE_FEE = '200000';
+      process.env.STELLAR_MAX_FEE = '150000';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      expect(() => loadConfig()).toThrow('Invalid environment configuration');
+    });
+
     it('should override both network defaults when both env vars are provided', () => {
       process.env.STELLAR_NETWORK = 'testnet';
       process.env.STELLAR_RPC_URL = 'https://custom-rpc.example.com';
@@ -281,6 +311,9 @@ describe('Configuration', () => {
       expect(config.baseFee).toBeDefined();
       expect(typeof config.baseFee).toBe('number');
       expect(config.baseFee).toBeGreaterThan(0);
+      expect(config.maxFee).toBeDefined();
+      expect(typeof config.maxFee).toBe('number');
+      expect(config.maxFee).toBeGreaterThanOrEqual(config.baseFee);
     });
   });
 

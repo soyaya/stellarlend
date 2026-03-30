@@ -13,10 +13,27 @@ import type {
   AssetMapping,
   SupportedAsset,
 } from './types/index.js';
+import { configureLogger, logger } from './utils/logger.js';
 
 export type { OracleServiceConfig } from './types/index.js';
 
 dotenv.config();
+
+const VALID_LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
+const MIN_STELLAR_FEE = 100;
+const DEFAULT_MAX_FEE = 1_000_000;
+
+function getBootstrapLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
+  const level = process.env.LOG_LEVEL;
+
+  if (level && VALID_LOG_LEVELS.has(level)) {
+    return level as 'debug' | 'info' | 'warn' | 'error';
+  }
+
+  return 'info';
+}
+
+configureLogger(getBootstrapLogLevel(), process.env.NODE_ENV === 'production');
 
 const booleanFlagSchema = z
   .union([z.boolean(), z.string()])
@@ -68,7 +85,8 @@ const NETWORK_DEFAULTS = {
 const envSchema = z.object({
   STELLAR_NETWORK: z.enum(['testnet', 'mainnet']).default('testnet'),
   STELLAR_RPC_URL: z.string().url().optional(),
-  STELLAR_BASE_FEE: z.coerce.number().positive().optional(),
+  STELLAR_BASE_FEE: z.coerce.number().int().min(MIN_STELLAR_FEE).optional(),
+  STELLAR_MAX_FEE: z.coerce.number().int().min(MIN_STELLAR_FEE).default(DEFAULT_MAX_FEE),
   CONTRACT_ID: z.string().min(1, 'CONTRACT_ID is required'),
   ADMIN_SECRET_KEY: z.string().min(1, 'ADMIN_SECRET_KEY is required'),
   COINGECKO_API_KEY: z.string().optional(),
@@ -82,6 +100,17 @@ const envSchema = z.object({
   CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(3),
   CIRCUIT_BREAKER_BACKOFF_MS: z.coerce.number().positive().default(30_000),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+}).superRefine((env, ctx) => {
+  const networkDefaults = NETWORK_DEFAULTS[env.STELLAR_NETWORK as keyof typeof NETWORK_DEFAULTS];
+  const baseFee = env.STELLAR_BASE_FEE ?? networkDefaults.baseFee;
+
+  if (baseFee > env.STELLAR_MAX_FEE) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'STELLAR_MAX_FEE must be greater than or equal to STELLAR_BASE_FEE',
+      path: ['STELLAR_MAX_FEE'],
+    });
+  }
 });
 
 /**
@@ -91,9 +120,11 @@ function parseEnv() {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
-    console.error('❌ Environment validation failed:');
-    result.error.issues.forEach((issue) => {
-      console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
+    logger.error('Environment validation failed', {
+      issues: result.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
     });
     throw new Error('Invalid environment configuration');
   }
@@ -213,6 +244,7 @@ export function loadConfig(): OracleServiceConfig {
     stellarNetwork: env.STELLAR_NETWORK,
     stellarRpcUrl,
     baseFee,
+    maxFee: env.STELLAR_MAX_FEE,
     contractId: env.CONTRACT_ID,
     adminSecretKey: env.ADMIN_SECRET_KEY,
     dryRun: env.DRY_RUN,

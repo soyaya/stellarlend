@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as lendingController from '../controllers/lending.controller';
 import { prepareValidation, submitValidation } from '../middleware/validation';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * @openapi

@@ -288,6 +288,45 @@ describe('Lending Controller', () => {
     });
   });
 
+  describe('GET /api/health/live', () => {
+    it('should return ok without checking upstream dependencies', async () => {
+      const response = await request(app).get('/api/health/live');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ status: 'ok' });
+      expect(mockStellarService.healthCheck).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/health/ready', () => {
+    it('should return ok when all dependencies are up', async () => {
+      const response = await request(app).get('/api/health/ready');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        status: 'ok',
+        horizon: 'up',
+        soroban: 'up',
+      });
+    });
+
+    it('should return 503 when a dependency is unavailable', async () => {
+      mockStellarService.healthCheck.mockResolvedValueOnce({
+        horizon: false,
+        sorobanRpc: true,
+      });
+
+      const response = await request(app).get('/api/health/ready');
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({
+        status: 'error',
+        horizon: 'down',
+        soroban: 'up',
+      });
+    });
+  });
+
   describe('GET /api/protocol/stats', () => {
     it('should return protocol statistics', async () => {
       const response = await request(app).get('/api/protocol/stats');

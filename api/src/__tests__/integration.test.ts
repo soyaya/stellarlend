@@ -230,6 +230,30 @@ describe('Error Handling', () => {
     expect(res.body.services.horizon).toBe(false);
     expect(res.body.services.sorobanRpc).toBe(false);
   });
+
+  it('liveness endpoint returns immediately without upstream checks', async () => {
+    const res = await request(app).get('/api/health/live');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ok' });
+    expect(mockStellarService.healthCheck).not.toHaveBeenCalled();
+  });
+
+  it('readiness endpoint returns dependency status details', async () => {
+    mockStellarService.healthCheck.mockResolvedValueOnce({
+      horizon: true,
+      sorobanRpc: false,
+    });
+
+    const res = await request(app).get('/api/health/ready');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({
+      status: 'error',
+      horizon: 'up',
+      soroban: 'down',
+    });
+  });
 });
 
 // ─── 3. Edge Cases ────────────────────────────────────────────────────────────
