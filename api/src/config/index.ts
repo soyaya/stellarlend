@@ -47,6 +47,10 @@ export const config = {
     /** Maximum request body size (e.g. '100kb', '1mb'). Defaults to 100kb. */
     limit: process.env.BODY_SIZE_LIMIT || '100kb',
   },
+  pagination: {
+    defaultLimit: parseInt(process.env.PAGINATION_DEFAULT_LIMIT || '10', 10),
+    maxLimit: parseInt(process.env.PAGINATION_MAX_LIMIT || '100', 10),
+  },
   cache: {
     idempotencyTtlMs: parseInt(process.env.IDEMPOTENCY_TTL_MS || '86400000', 10),
     idempotencyMaxEntries: parseInt(process.env.IDEMPOTENCY_MAX_ENTRIES || '1000', 10),

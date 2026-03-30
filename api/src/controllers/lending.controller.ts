@@ -69,6 +69,19 @@ export const submit = async (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
+export const getTransactionHistory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userAddress } = req.params;
+    const query = { ...req.query, userAddress };
+    const stellarService = new StellarService();
+    const result = await stellarService.getTransactionHistory(query as any);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const healthCheck = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const stellarService = new StellarService();

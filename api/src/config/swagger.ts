@@ -93,6 +93,44 @@ const options: swaggerJsdoc.Options = {
           },
           required: ['success', 'error'],
         },
+        PaginationMeta: {
+          type: 'object',
+          properties: {
+            cursor: { type: ['string', 'null'], nullable: true },
+            hasMore: { type: 'boolean' },
+            limit: { type: 'integer' },
+          },
+          required: ['cursor', 'hasMore', 'limit'],
+        },
+        PaginatedResponseTransactionHistory: {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/TransactionHistoryItem',
+              },
+            },
+            pagination: {
+              $ref: '#/components/schemas/PaginationMeta',
+            },
+          },
+          required: ['data', 'pagination'],
+        },
+        TransactionHistoryItem: {
+          type: 'object',
+          properties: {
+            transactionHash: { type: 'string' },
+            type: { type: 'string', enum: ['deposit', 'borrow', 'repay', 'withdraw'] },
+            amount: { type: 'string' },
+            assetAddress: { type: 'string' },
+            timestamp: { type: 'string', format: 'date-time' },
+            status: { type: 'string', enum: ['success', 'failed', 'pending'] },
+            ledger: { type: 'integer' },
+            memo: { type: 'string' },
+          },
+          required: ['transactionHash', 'type', 'amount', 'timestamp', 'status'],
+        },
       },
     },
   },

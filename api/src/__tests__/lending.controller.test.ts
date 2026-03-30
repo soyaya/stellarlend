@@ -48,7 +48,7 @@ const mockStellarService: jest.Mocked<StellarService> = {
     sorobanRpc: true,
   }),
   getTransactionHistory: jest.fn().mockResolvedValue({
-    transactions: [
+    data: [
       {
         transactionHash: 'tx_hash_1',
         type: 'deposit',
@@ -60,7 +60,8 @@ const mockStellarService: jest.Mocked<StellarService> = {
       },
     ],
     pagination: {
-      hasNextPage: false,
+      cursor: null,
+      hasMore: false,
       limit: 10,
     },
   }),
@@ -264,6 +265,39 @@ describe('Lending Controller', () => {
       expect(Object.keys(auditData)).not.toContain('userSecret');
       expect(Object.keys(auditData)).not.toContain('privateKey');
       expect(Object.keys(auditData)).not.toContain('secret');
+    });
+  });
+
+  describe('GET /api/lending/transactions/:userAddress', () => {
+    const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
+
+    it('should return paginated transaction history with default limit', async () => {
+      const response = await request(app).get(`/api/lending/transactions/${userAddress}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('data');
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body).toHaveProperty('pagination');
+      expect(response.body.pagination).toEqual({ cursor: null, hasMore: false, limit: 10 });
+      expect(response.body.data[0]).toMatchObject({ transactionHash: 'tx_hash_1' });
+    });
+
+    it('should validate query limit', async () => {
+      const response = await request(app)
+        .get(`/api/lending/transactions/${userAddress}`)
+        .query({ limit: 9999 });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/limit/i);
+    });
+
+    it('should validate cursor is non-empty', async () => {
+      const response = await request(app)
+        .get(`/api/lending/transactions/${userAddress}`)
+        .query({ cursor: '' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toMatch(/cursor/i);
     });
   });
 

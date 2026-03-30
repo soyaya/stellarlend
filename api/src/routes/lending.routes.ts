@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as lendingController from '../controllers/lending.controller';
-import { prepareValidation, submitValidation } from '../middleware/validation';
+import { prepareValidation, submitValidation, paginationValidation } from '../middleware/validation';
 
 const router = Router();
 
@@ -152,7 +152,7 @@ router.post('/submit', submitValidation, lendingController.submit);
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/TransactionHistoryResponse'
+ *               $ref: '#/components/schemas/PaginatedResponseTransactionHistory'
  *       400:
  *         description: Validation error or invalid address format
  *         content:
@@ -166,6 +166,6 @@ router.post('/submit', submitValidation, lendingController.submit);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/transactions/:userAddress', lendingController.getTransactionHistory);
+router.get('/transactions/:userAddress', paginationValidation, lendingController.getTransactionHistory);
 
 export default router;

@@ -88,6 +88,25 @@ Response:
 }
 ```
 
+### Paginated List Endpoints
+All list endpoints use cursor-based pagination (Horizon style) and return the same structure:
+```json
+{
+  "data": [ ... ],
+  "pagination": {
+    "cursor": "nextCursorValue or null",
+    "hasMore": true|false,
+    "limit": 10
+  }
+}
+```
+
+Query parameters:
+- `limit` (optional; default from `PAGINATION_DEFAULT_LIMIT`, max `PAGINATION_MAX_LIMIT`)
+- `cursor` (optional; page cursor)
+
+Example endpoint:
+`GET /api/lending/transactions/{userAddress}?limit=10&cursor=12345`
 All amounts in stroops (1 XLM = 10,000,000 stroops)
 
 Clients must sign the returned XDR locally. The API does not accept Stellar secret keys.

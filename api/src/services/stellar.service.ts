@@ -13,6 +13,7 @@ import axios from 'axios';
 import { config } from '../config';
 import logger from '../utils/logger';
 import { InternalServerError } from '../utils/errors';
+import { parsePaginationParams, buildPaginationMeta } from '../utils/pagination';
 import {
   TransactionResponse,
   LendingOperation,
@@ -403,7 +404,8 @@ export class StellarService {
 
   async getTransactionHistory(query: TransactionHistoryQuery): Promise<TransactionHistoryResponse> {
     try {
-      const { userAddress, limit = 10, cursor } = query;
+      const { userAddress } = query;
+      const { limit, cursor } = parsePaginationParams(query as any);
 
       // Validate Stellar address format
       if (!this.isValidStellarAddress(userAddress)) {
@@ -413,27 +415,24 @@ export class StellarService {
       // Build Horizon API URL for transactions
       let url = `${this.horizonUrl}/accounts/${userAddress}/transactions?limit=${limit}&order=desc`;
       if (cursor) {
-        url += `&cursor=${cursor}`;
+        url += `&cursor=${encodeURIComponent(cursor)}`;
       }
 
       const response = await axios.get(url);
-      const transactions = response.data._embedded.records;
+      const transactions = response.data._embedded?.records || [];
 
       // Filter and map transactions related to lending contract
       const lendingTransactions = await this.filterLendingTransactions(transactions);
 
-      // Extract pagination info
-      const pagination = {
-        cursor: response.data._links.next
-          ? response.data._links.next.href.split('cursor=')[1]
-          : undefined,
-        hasNextPage: !!response.data._links.next,
-        limit: parseInt(response.data.limit) || limit,
-      };
+      // Extract pagination info from Horizon next link
+      const nextCursor = response.data._links?.next
+        ? new URL(response.data._links.next.href).searchParams.get('cursor')
+        : null;
+      const hasNextPage = !!response.data._links?.next;
 
       return {
-        transactions: lendingTransactions,
-        pagination,
+        data: lendingTransactions,
+        pagination: buildPaginationMeta(nextCursor, hasNextPage, limit),
       };
     } catch (error) {
       logger.error('Failed to fetch transaction history:', error);

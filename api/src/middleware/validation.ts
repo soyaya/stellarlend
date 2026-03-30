@@ -1,4 +1,4 @@
-import { body, param, validationResult, check } from 'express-validator';
+import { body, param, query, validationResult, check } from 'express-validator';
 import { Request, Response, NextFunction } from 'express';
 import { ValidationError } from '../utils/errors';
 import { StrKey } from '@stellar/stellar-sdk';
@@ -106,6 +106,19 @@ export const submitValidation = [
     }
   }),
   body('assetAddress').optional().isString().notEmpty().withMessage('Asset address must be a string'),
+  validateRequest,
+];
+
+export const paginationValidation = [
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: parseInt(process.env.PAGINATION_MAX_LIMIT || '100', 10) })
+    .withMessage('limit must be a positive integer and at most the configured max'),
+  query('cursor')
+    .optional()
+    .isString()
+    .notEmpty()
+    .withMessage('cursor must be a non-empty string'),
   validateRequest,
 ];
 
