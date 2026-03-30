@@ -4,7 +4,8 @@ REST API for StellarLend core lending operations (deposit, borrow, repay, withdr
 
 ## Features
 
-- REST endpoints for deposit, borrow, repay, withdraw operations
+- Unsigned transaction preparation for deposit, borrow, repay, withdraw operations
+- Signed transaction submission endpoint
 - Request validation and error handling
 - Transaction submission and monitoring
 - Rate limiting and security middleware
@@ -51,47 +52,45 @@ RATE_LIMIT_MAX_REQUESTS=100
 ### Health Check
 `GET /api/health` - Check service status
 
-### Deposit Collateral
-`POST /api/lending/deposit`
+### Prepare Transaction
+`GET /api/lending/prepare/:operation`
 ```json
 {
   "userAddress": "G...",
-  "amount": "10000000",
-  "userSecret": "S..."
+  "amount": "10000000"
 }
 ```
 
-### Borrow Assets
-`POST /api/lending/borrow`
+Response:
 ```json
 {
-  "userAddress": "G...",
-  "amount": "5000000",
-  "userSecret": "S..."
+  "unsignedXdr": "AAAA...",
+  "operation": "deposit",
+  "expiresAt": "2026-03-28T12:34:56.000Z"
 }
 ```
 
-### Repay Debt
-`POST /api/lending/repay`
+### Submit Signed Transaction
+`POST /api/lending/submit`
 ```json
 {
-  "userAddress": "G...",
-  "amount": "5500000",
-  "userSecret": "S..."
+  "signedXdr": "AAAA..."
 }
 ```
 
-### Withdraw Collateral
-`POST /api/lending/withdraw`
+Response:
 ```json
 {
-  "userAddress": "G...",
-  "amount": "2000000",
-  "userSecret": "S..."
+  "success": true,
+  "transactionHash": "abc123...",
+  "status": "success",
+  "ledger": 12345
 }
 ```
 
 All amounts in stroops (1 XLM = 10,000,000 stroops)
+
+Clients must sign the returned XDR locally. The API does not accept Stellar secret keys.
 
 ## Testing
 
