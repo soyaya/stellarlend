@@ -3,6 +3,7 @@
  */
 
 import {
+  Account,
   Keypair,
   Contract,
   rpc,
@@ -251,7 +252,7 @@ export class ContractUpdater {
 
       // 2. Check admin account exists and has funds
       try {
-        const adminAccount = await this.server.getAccount(this.adminKeypair.publicKey());
+        const adminAccount = (await this.server.getAccount(this.adminKeypair.publicKey())) as any;
         result.admin = true;
         result.details.admin = {
           exists: true,

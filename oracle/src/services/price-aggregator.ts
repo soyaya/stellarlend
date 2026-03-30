@@ -144,7 +144,7 @@ export class PriceAggregator {
                 const circuitBreaker = this.circuitBreakers.get(provider.name);
                 
                 // Check circuit breaker state
-                if (circuitBreaker && circuitBreaker.getState() === 'OPEN') {
+                if (circuitBreaker && circuitBreaker.currentState === 'OPEN') {
                     logger.warn(`Circuit breaker OPEN for ${provider.name}, skipping`);
                     continue;
                 }
@@ -275,7 +275,7 @@ export class PriceAggregator {
             return avg;
         }
 
-        return sorted[mid];
+        return sorted[mid].price;
     }
 
     /**
