@@ -16,6 +16,7 @@ import {
 import {
   createValidator,
   createPriceCache,
+  createPriceHistoryService,
   createAggregator,
   createContractUpdater,
   type PriceAggregator,
@@ -77,8 +78,9 @@ export class OracleService {
     });
 
     const cache = createPriceCache(config.cacheTtlSeconds);
+    const priceHistory = createPriceHistoryService();
 
-    this.aggregator = createAggregator(providers, validator, cache, {
+    this.aggregator = createAggregator(providers, validator, cache, priceHistory, {
       circuitBreaker: config.circuitBreaker,
     });
 
