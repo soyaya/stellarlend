@@ -184,6 +184,12 @@ fn test_custom_staleness_threshold_respected() {
         cache_ttl_seconds: 10,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &config);
 
@@ -210,6 +216,12 @@ fn test_custom_staleness_threshold_boundary_valid() {
         cache_ttl_seconds: 10,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &config);
 

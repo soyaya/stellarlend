@@ -93,6 +93,12 @@ fn test_configure_oracle_success() {
         cache_ttl_seconds: 600,      // 10 minutes
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
 
     client.configure_oracle(&admin, &config);
@@ -118,6 +124,12 @@ fn test_configure_oracle_unauthorized() {
         cache_ttl_seconds: 600,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
 
     client.configure_oracle(&unauthorized, &config);
@@ -281,6 +293,12 @@ fn test_adjust_price_deviation_threshold() {
         cache_ttl_seconds: 300,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &tight_config);
 
@@ -315,6 +333,12 @@ fn test_adjust_staleness_threshold() {
         cache_ttl_seconds: 30,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &fresh_config);
 
@@ -355,6 +379,12 @@ fn test_adjust_cache_ttl() {
         cache_ttl_seconds: 10,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &short_cache_config);
 
@@ -401,6 +431,12 @@ fn test_oracle_cannot_modify_config() {
         cache_ttl_seconds: 600,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
 
     let result = std::panic::catch(|| {
@@ -461,6 +497,12 @@ fn test_random_user_cannot_modify_oracle_settings() {
         cache_ttl_seconds: 600,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
 
     let result = std::panic::catch(|| {
@@ -517,6 +559,12 @@ fn test_extreme_configuration_values() {
         cache_ttl_seconds: 3600, // 1 hour
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &max_deviation_config);
 
@@ -527,6 +575,12 @@ fn test_extreme_configuration_values() {
         cache_ttl_seconds: 0, // no cache
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &min_deviation_config);
 }
@@ -575,6 +629,12 @@ fn test_configuration_persistence_oracle_switch() {
         cache_ttl_seconds: 120, // 2 minutes
         min_price: 1000, // $0.0001
         max_price: 1_000_000_000_000, // $10,000
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &config);
 
@@ -664,6 +724,12 @@ fn test_oracle_configuration_with_pause() {
         cache_ttl_seconds: 600,
         min_price: 1,
         max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &config);
 
