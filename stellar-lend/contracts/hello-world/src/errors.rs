@@ -7,6 +7,7 @@ use crate::deposit::DepositError;
 use crate::flash_loan::FlashLoanError;
 use crate::interest_rate::InterestRateError;
 use crate::liquidate::LiquidationError;
+use crate::rate_limiter::RateLimitError;
 use crate::repay::RepayError;
 use crate::risk_management::RiskManagementError;
 use crate::risk_params::RiskParamsError;
@@ -216,6 +217,13 @@ impl_from_error!(LiquidationError, {
     LiquidationError::PriceNotAvailable => LendingError::PriceUnavailable,
     LiquidationError::InsufficientLiquidation => LendingError::InvalidState,
     LiquidationError::Reentrancy => LendingError::Reentrancy,
+});
+
+impl_from_error!(RateLimitError, {
+    RateLimitError::RateLimited => LendingError::LimitExceeded,
+    RateLimitError::InvalidConfig => LendingError::InvalidParameter,
+    RateLimitError::Unauthorized => LendingError::Unauthorized,
+    RateLimitError::Overflow => LendingError::Overflow,
 });
 
 impl_from_error!(RepayError, {

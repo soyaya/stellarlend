@@ -20,6 +20,7 @@ pub mod multi_collateral;
 pub mod multisig;
 pub mod oracle;
 pub mod recovery;
+pub mod rate_limiter;
 pub mod reentrancy;
 pub mod repay;
 pub mod reserve;
@@ -134,6 +135,18 @@ impl HelloContract {
         asset: Option<Address>,
         amount: i128,
     ) -> Result<i128, LendingError> {
+        // Rate limiting: per-user and global-per-pool (pool = asset or native sentinel)
+        let pool = asset
+            .clone()
+            .unwrap_or_else(|| env.current_contract_address());
+        rate_limiter::consume(
+            &env,
+            &user, // caller is the authenticated user in this entrypoint
+            &user,
+            &soroban_sdk::Symbol::new(&env, "borrow"),
+            &pool,
+        )
+        .map_err(|_| LendingError::LimitExceeded)?;
         borrow::borrow_asset(&env, user, asset, amount).map_err(Into::into)
     }
 
@@ -164,6 +177,18 @@ impl HelloContract {
         debt_amount: i128,
     ) -> Result<(i128, i128, i128), LendingError> {
         liquidator.require_auth();
+        // Rate limiting: liquidator is the actor. Pool key uses the debt asset (or native sentinel).
+        let pool = debt_asset
+            .clone()
+            .unwrap_or_else(|| env.current_contract_address());
+        rate_limiter::consume(
+            &env,
+            &liquidator,
+            &liquidator,
+            &soroban_sdk::Symbol::new(&env, "liquidate"),
+            &pool,
+        )
+        .map_err(|_| LendingError::LimitExceeded)?;
         liquidate::liquidate(
             &env,
             liquidator,
@@ -381,6 +406,73 @@ impl HelloContract {
         config: flash_loan::FlashLoanConfig,
     ) -> Result<(), LendingError> {
         flash_loan::set_flash_loan_config(&env, caller, config).map_err(Into::into)
+    }
+
+    // -------------------------------------------------------------------------
+    // Rate limiting configuration & monitoring
+    // -------------------------------------------------------------------------
+
+    /// Admin-only: configure default rate limits for an operation.
+    pub fn configure_rate_limit_operation(
+        env: Env,
+        caller: Address,
+        operation: soroban_sdk::Symbol,
+        cfg: rate_limiter::RateLimitConfig,
+    ) -> Result<(), LendingError> {
+        rate_limiter::configure_operation_limit(&env, caller, operation, cfg)
+            .map_err(|e| match e {
+                rate_limiter::RateLimitError::Unauthorized => LendingError::Unauthorized,
+                rate_limiter::RateLimitError::InvalidConfig => LendingError::InvalidParameter,
+                _ => LendingError::InvalidParameter,
+            })
+    }
+
+    /// Admin-only: configure global-per-pool rate limits for an operation.
+    pub fn configure_rate_limit_pool(
+        env: Env,
+        caller: Address,
+        operation: soroban_sdk::Symbol,
+        pool: Address,
+        cfg: rate_limiter::RateLimitConfig,
+    ) -> Result<(), LendingError> {
+        rate_limiter::configure_pool_limit(&env, caller, operation, pool, cfg).map_err(|e| match e {
+            rate_limiter::RateLimitError::Unauthorized => LendingError::Unauthorized,
+            rate_limiter::RateLimitError::InvalidConfig => LendingError::InvalidParameter,
+            _ => LendingError::InvalidParameter,
+        })
+    }
+
+    /// Admin-only: grant/revoke extra burst capacity for a (user, operation) pair.
+    pub fn set_user_rate_limit_grace(
+        env: Env,
+        caller: Address,
+        user: Address,
+        operation: soroban_sdk::Symbol,
+        enabled: bool,
+    ) -> Result<(), LendingError> {
+        rate_limiter::set_user_grace(&env, caller, user, operation, enabled).map_err(|e| match e {
+            rate_limiter::RateLimitError::Unauthorized => LendingError::Unauthorized,
+            _ => LendingError::InvalidParameter,
+        })
+    }
+
+    /// Read-only: returns per-user bucket status.
+    pub fn get_user_rate_limit_status(
+        env: Env,
+        user: Address,
+        operation: soroban_sdk::Symbol,
+        pool: Address,
+    ) -> rate_limiter::RateLimitStatus {
+        rate_limiter::get_user_status(&env, user, operation, pool)
+    }
+
+    /// Read-only: returns global-per-pool bucket status.
+    pub fn get_global_rate_limit_status(
+        env: Env,
+        operation: soroban_sdk::Symbol,
+        pool: Address,
+    ) -> rate_limiter::RateLimitStatus {
+        rate_limiter::get_global_status(&env, operation, pool)
     }
 }
 

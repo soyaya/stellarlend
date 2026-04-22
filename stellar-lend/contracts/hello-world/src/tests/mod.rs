@@ -13,6 +13,7 @@ pub mod interest_rate_test;
 pub mod liquidate_test;
 pub mod oracle_test;
 pub mod pause_test;
+pub mod rate_limiter_test;
 pub mod risk_params_test;
 pub mod security_test;
 pub mod test;
