@@ -34,4 +34,50 @@ router.get('/roles', requireRole('operator'), lendingController.listRoleAssignme
 router.post('/roles/assign', requireRole('admin'), lendingController.assignAccessRole);
 router.post('/roles/revoke', requireRole('admin'), lendingController.revokeAccessRole);
 
+/**
+ * @openapi
+ * /protocol/audit-logs:
+ *   get:
+ *     summary: Search audit logs
+ *     description: >
+ *       Returns structured audit log entries. Supports filtering by action, actor, status,
+ *       and date range. All state changes (transactions, role assignments, pause/resume)
+ *       are captured with before/after values and a SHA-256 integrity hash chain.
+ *     tags:
+ *       - Protocol
+ *     parameters:
+ *       - { in: query, name: action,  schema: { type: string }, description: "Filter by action (e.g. DEPOSIT)" }
+ *       - { in: query, name: actor,   schema: { type: string }, description: "Filter by actor address" }
+ *       - { in: query, name: status,  schema: { type: string }, description: "Filter by status" }
+ *       - { in: query, name: from,    schema: { type: string, format: date-time } }
+ *       - { in: query, name: to,      schema: { type: string, format: date-time } }
+ *       - { in: query, name: limit,   schema: { type: integer, default: 100 } }
+ *       - { in: query, name: offset,  schema: { type: integer, default: 0 } }
+ */
+router.get('/audit-logs', requireRole('operator'), lendingController.getAuditLogs);
+
+/**
+ * @openapi
+ * /protocol/audit-logs/export:
+ *   get:
+ *     summary: Export audit logs as JSON
+ *     description: Downloads the filtered audit log as a JSON attachment for auditors.
+ *     tags:
+ *       - Protocol
+ */
+router.get('/audit-logs/export', requireRole('operator'), lendingController.exportAuditLogs);
+
+/**
+ * @openapi
+ * /protocol/audit-logs/verify:
+ *   get:
+ *     summary: Verify audit log integrity
+ *     description: >
+ *       Recalculates and verifies the SHA-256 hash chain across all stored audit entries.
+ *       Returns 200 when intact, 409 when tampering is detected.
+ *     tags:
+ *       - Protocol
+ */
+router.get('/audit-logs/verify', requireRole('operator'), lendingController.verifyAuditLogIntegrity);
+
 export default router;
