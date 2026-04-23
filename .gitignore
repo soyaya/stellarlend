@@ -54,3 +54,31 @@ TEST_FIX.txt
 # cargo-fuzz
 stellar-lend/fuzz/artifacts/
 stellar-lend/fuzz/coverage/
+
+# Test snapshots and coverage
+**/*.snap
+**/coverage/
+**/.nyc_output/
+**/test-results/
+*.lcov
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~

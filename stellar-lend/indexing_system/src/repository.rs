@@ -108,6 +108,159 @@ impl EventRepository {
         Ok(inserted)
     }
 
+    /// Optimized query for recent events by contract (uses covering index)
+    ///
+    /// # Arguments
+    /// * `contract_address` - Contract address to filter by
+    /// * `limit` - Maximum number of events to return
+    ///
+    /// # Returns
+    /// Vector of recent events for the contract
+    pub async fn get_recent_events_by_contract(
+        &self,
+        contract_address: &str,
+        limit: u32,
+    ) -> IndexerResult<Vec<Event>> {
+        let events = sqlx::query_as::<_, Event>(
+            r#"
+            SELECT id, contract_address, event_name, block_number,
+                   transaction_hash, log_index, event_data, indexed_at, created_at
+            FROM events
+            WHERE contract_address = $1
+              AND indexed_at > NOW() - INTERVAL '7 days'
+            ORDER BY block_number DESC, log_index DESC
+            LIMIT $2
+            "#,
+        )
+        .bind(contract_address)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(events)
+    }
+
+    /// Optimized query for events by type and block range (uses composite index)
+    ///
+    /// # Arguments
+    /// * `contract_address` - Contract address
+    /// * `event_name` - Event name to filter by
+    /// * `from_block` - Starting block number
+    /// * `to_block` - Ending block number
+    ///
+    /// # Returns
+    /// Vector of matching events
+    pub async fn get_events_by_type_and_range(
+        &self,
+        contract_address: &str,
+        event_name: &str,
+        from_block: u64,
+        to_block: u64,
+    ) -> IndexerResult<Vec<Event>> {
+        let events = sqlx::query_as::<_, Event>(
+            r#"
+            SELECT id, contract_address, event_name, block_number,
+                   transaction_hash, log_index, event_data, indexed_at, created_at
+            FROM events
+            WHERE contract_address = $1
+              AND event_name = $2
+              AND block_number BETWEEN $3 AND $4
+            ORDER BY block_number DESC, log_index DESC
+            "#,
+        )
+        .bind(contract_address)
+        .bind(event_name)
+        .bind(from_block as i64)
+        .bind(to_block as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(events)
+    }
+
+    /// Get event count statistics using materialized view (fast)
+    ///
+    /// # Arguments
+    /// * `contract_address` - Optional contract address filter
+    ///
+    /// # Returns
+    /// Event statistics
+    pub async fn get_event_count_stats(&self, contract_address: Option<&str>) -> IndexerResult<Vec<(String, String, i64)>> {
+        let query = if let Some(addr) = contract_address {
+            sqlx::query(
+                r#"
+                SELECT contract_address, event_name, event_count
+                FROM event_statistics
+                WHERE contract_address = $1
+                ORDER BY event_count DESC
+                "#,
+            )
+            .bind(addr)
+        } else {
+            sqlx::query(
+                r#"
+                SELECT contract_address, event_name, event_count
+                FROM event_statistics
+                ORDER BY event_count DESC
+                LIMIT 100
+                "#,
+            )
+        };
+
+        let rows = query.fetch_all(&self.pool).await?;
+        let mut results = Vec::new();
+
+        for row in rows {
+            results.push((
+                row.get("contract_address"),
+                row.get("event_name"),
+                row.get("event_count"),
+            ));
+        }
+
+        Ok(results)
+    }
+
+    /// Refresh the materialized view for event statistics
+    ///
+    /// This should be called periodically to update statistics.
+    pub async fn refresh_event_statistics(&self) -> IndexerResult<()> {
+        sqlx::query("SELECT refresh_event_statistics()")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Analyze index usage and performance
+    ///
+    /// # Returns
+    /// Index performance statistics
+    pub async fn analyze_index_performance(&self) -> IndexerResult<Vec<(String, String, i64)>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT schemaname || '.' || tablename as table_name,
+                   schemaname || '.' || indexname as index_name,
+                   idx_scan as usage_count
+            FROM pg_stat_user_indexes
+            WHERE tablename = 'events'
+            ORDER BY idx_scan DESC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            results.push((
+                row.get("table_name"),
+                row.get("index_name"),
+                row.get("usage_count"),
+            ));
+        }
+
+        Ok(results)
+    }
+
     /// Query events with filtering and pagination
     ///
     /// # Arguments
