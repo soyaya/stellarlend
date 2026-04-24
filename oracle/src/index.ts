@@ -1,11 +1,11 @@
 /**
  * StellarLend Oracle Service
- *
  * Off-chain oracle integration service that fetches price data from
  * multiple sources (CoinGecko, Binance)
  * @see https://github.com/stellarlend/stellarlend-contracts
  */
 
+import { fileURLToPath } from 'node:url';
 import { loadConfig, getSafeConfig, type OracleServiceConfig } from './config.js';
 import { configureLogger, logger, logProviderHealth, logStalenessAlert } from './utils/logger.js';
 import {
@@ -16,6 +16,7 @@ import {
 import {
   createValidator,
   createPriceCache,
+  createPriceHistoryService,
   createAggregator,
   createContractUpdater,
   type PriceAggregator,
@@ -27,6 +28,22 @@ import type { ProviderConfig } from './types/index.js';
  * Default assets to fetch prices for
  */
 const DEFAULT_ASSETS = ['XLM', 'USDC', 'BTC', 'ETH', 'SOL'];
+
+function serializePricesForLog(prices: {
+  asset: string;
+  price: bigint;
+  timestamp: number;
+  confidence: number;
+  sources: { source: string }[];
+}[]) {
+  return prices.map((price) => ({
+    asset: price.asset,
+    price: price.price.toString(),
+    timestamp: price.timestamp,
+    confidence: price.confidence,
+    sources: price.sources.map((source) => source.source),
+  }));
+}
 
 /**
  * Oracle Service
@@ -61,8 +78,9 @@ export class OracleService {
     });
 
     const cache = createPriceCache(config.cacheTtlSeconds);
+    const priceHistory = createPriceHistoryService();
 
-    this.aggregator = createAggregator(providers, validator, cache, {
+    this.aggregator = createAggregator(providers, validator, cache, priceHistory, {
       circuitBreaker: config.circuitBreaker,
     });
 
@@ -71,6 +89,8 @@ export class OracleService {
       rpcUrl: config.stellarRpcUrl,
       contractId: config.contractId,
       adminSecretKey: config.adminSecretKey,
+      baseFee: config.baseFee,
+      maxFee: config.maxFee,
       maxRetries: 3,
       retryDelayMs: 1000,
     });
@@ -78,6 +98,7 @@ export class OracleService {
     logger.info('Oracle service initialized', {
       network: config.stellarNetwork,
       contractId: config.contractId,
+      dryRun: !!config.dryRun,
       updateInterval: config.updateIntervalMs,
       providers: this.aggregator.getProviders(),
     });
@@ -157,8 +178,24 @@ export class OracleService {
         assets: Array.from(prices.keys()),
       });
 
-      // Update contract
       const priceArray = Array.from(prices.values());
+      const serializedPrices = serializePricesForLog(priceArray);
+
+      if (this.config.dryRun) {
+        this.lastSuccessfulUpdate = Date.now();
+
+        logger.info('DRY RUN: Would update prices on contract', {
+          assets: serializedPrices.map((price) => price.asset),
+          prices: serializedPrices,
+          durationMs: Date.now() - startTime,
+          contractId: this.config.contractId,
+          dryRun: true,
+        });
+
+        return;
+      }
+
+      // Update contract
       const results = await this.contractUpdater.updatePrices(priceArray);
 
       // Log results
@@ -213,13 +250,7 @@ export class OracleService {
  * Main entry point
  */
 async function main(): Promise<void> {
-  console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                StellarLend Oracle Service                  ║
-║                                                            ║
-║  Off-chain oracle integration for price data management   ║
-╚═══════════════════════════════════════════════════════════╝
-  `);
+  logger.info('Starting StellarLend Oracle Service');
 
   try {
     // Load configuration
@@ -244,13 +275,28 @@ async function main(): Promise<void> {
     // Start service
     await service.start();
   } catch (error) {
-    console.error('Failed to start oracle service:', error);
+    logger.error('Failed to start oracle service', { error });
     process.exit(1);
   }
 }
 
-// Run if this is the main module
-main().catch(console.error);
+function isExecutedDirectly(): boolean {
+  const entryFile = process.argv[1];
+
+  if (!entryFile) {
+    return false;
+  }
+
+  return fileURLToPath(import.meta.url) === entryFile;
+}
+
+// Run only when executed as the entrypoint, not when imported by tests/modules
+if (isExecutedDirectly()) {
+  main().catch((error) => {
+    logger.error('Unhandled oracle service error', { error });
+    process.exit(1);
+  });
+}
 
 // Export for programmatic use
 export { loadConfig, maskSecret, getSafeConfig } from './config.js';

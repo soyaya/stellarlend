@@ -1,4 +1,5 @@
 use crate::events::FlashLoanEvent;
+use crate::pause::{is_paused, PauseType};
 use soroban_sdk::{contracterror, contracttype, token, Address, Bytes, Env, IntoVal, Symbol};
 
 /// Errors that can occur during flash loan operations
@@ -12,6 +13,8 @@ pub enum FlashLoanError {
     InvalidFee = 4,
     CallbackFailed = 5,
     Reentrancy = 6,
+    /// Flash loan operations are currently paused
+    FlashLoanPaused = 7,
 }
 
 /// Storage keys for flash loan data
@@ -39,6 +42,10 @@ pub fn flash_loan(
     amount: i128,
     params: Bytes,
 ) -> Result<(), FlashLoanError> {
+    if is_paused(env, PauseType::FlashLoan) {
+        return Err(FlashLoanError::FlashLoanPaused);
+    }
+
     if amount <= 0 {
         return Err(FlashLoanError::InvalidAmount);
     }

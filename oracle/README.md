@@ -34,7 +34,8 @@ cp .env.example .env
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `STELLAR_NETWORK` | Network: `testnet` or `mainnet` | Yes |
-| `STELLAR_RPC_URL` | Soroban RPC endpoint | Yes |
+| `STELLAR_RPC_URL` | Soroban RPC endpoint (optional, uses network default) | No |
+| `STELLAR_BASE_FEE` | Base fee for transactions (optional, uses network default) | No |
 | `CONTRACT_ID` | StellarLend contract address | Yes |
 | `ADMIN_SECRET_KEY` | Secret key for signing transactions | Yes |
 | `COINGECKO_API_KEY` | CoinGecko Pro API key | No |
@@ -42,6 +43,34 @@ cp .env.example .env
 | `UPDATE_INTERVAL_MS` | Price update interval (default: 60000) | No |
 | `MAX_PRICE_DEVIATION_PERCENT` | Max price deviation % (default: 10) | No |
 | `LOG_LEVEL` | Logging: debug, info, warn, error | No |
+
+### Network-Specific Defaults
+
+The Oracle automatically configures appropriate defaults based on the `STELLAR_NETWORK` setting:
+
+#### Testnet Defaults
+- **RPC URL**: `https://soroban-testnet.stellar.org`
+- **Base Fee**: `100,000` stroops
+
+#### Mainnet Defaults
+- **RPC URL**: `https://soroban.stellar.org`
+- **Base Fee**: `200,000` stroops
+
+#### Environment Variable Override
+You can override network defaults by setting:
+- `STELLAR_RPC_URL` - Custom RPC endpoint
+- `STELLAR_BASE_FEE` - Custom base fee
+
+Example configuration:
+```bash
+# Use mainnet with custom RPC
+STELLAR_NETWORK=mainnet
+STELLAR_RPC_URL=https://my-custom-rpc.example.com
+
+# Use testnet with higher fee
+STELLAR_NETWORK=testnet
+STELLAR_BASE_FEE=150000
+```
 
 ## Usage
 

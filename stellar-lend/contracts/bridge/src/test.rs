@@ -369,3 +369,68 @@ fn compute_fee_max_rate() {
     // 100_000 * 1_000 / 10_000 = 10_000
     assert_eq!(BridgeContract::compute_fee(env, 100_000, 1_000), 10_000);
 }
+
+// ── bridge_acceptance_pause ────────────────────────────────────────────────────
+
+#[test]
+fn bridge_acceptance_paused_blocks_deposits() {
+    let (env, client, admin) = setup();
+    default_bridge(&client, &env, &admin);
+
+    // Initially not paused
+    assert!(!client.is_bridge_acceptance_paused());
+
+    // Pause bridge acceptance
+    client.set_bridge_acceptance_paused(&admin, &true);
+    assert!(client.is_bridge_acceptance_paused());
+
+    // Deposit should fail
+    let user = Address::generate(&env);
+    let result = client.try_bridge_deposit(&user, &s(&env, "eth-mainnet"), &10_000i128);
+    assert_eq!(result, Err(Ok(ContractError::BridgeAcceptancePaused)));
+}
+
+#[test]
+fn bridge_acceptance_unpause_allows_deposits() {
+    let (env, client, admin) = setup();
+    default_bridge(&client, &env, &admin);
+
+    client.set_bridge_acceptance_paused(&admin, &true);
+    client.set_bridge_acceptance_paused(&admin, &false);
+
+    let user = Address::generate(&env);
+    let net = client.bridge_deposit(&user, &s(&env, "eth-mainnet"), &10_000i128);
+    assert!(net > 0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #3)")]
+fn set_bridge_acceptance_paused_non_admin_panics() {
+    let (env, client, _) = setup();
+    let rando = Address::generate(&env);
+    client.set_bridge_acceptance_paused(&rando, &true);
+}
+
+#[test]
+fn bridge_acceptance_pause_emits_event() {
+    use soroban_sdk::testutils::Events;
+    let (env, client, admin) = setup();
+
+    client.set_bridge_acceptance_paused(&admin, &true);
+
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+#[test]
+fn bridge_acceptance_pause_does_not_block_withdraw() {
+    let (env, client, admin) = setup();
+    default_bridge(&client, &env, &admin);
+
+    // Pause acceptance
+    client.set_bridge_acceptance_paused(&admin, &true);
+
+    // Admin withdraw should still work (not affected by acceptance pause)
+    let recip = Address::generate(&env);
+    client.bridge_withdraw(&admin, &s(&env, "eth-mainnet"), &recip, &1_000i128);
+}

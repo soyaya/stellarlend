@@ -17,6 +17,7 @@ pub enum DepositError {
     Overflow = 3,
     AssetNotSupported = 4,
     ExceedsDepositCap = 5,
+    Unauthorized = 6,
 }
 
 /// Storage keys for deposit-related data

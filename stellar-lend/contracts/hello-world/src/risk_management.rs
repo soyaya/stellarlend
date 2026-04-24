@@ -9,7 +9,7 @@
 //! - **Liquidation incentive** (default 10%): bonus awarded to liquidators
 //!
 //! ## Pause Controls
-//! - Per-operation pause switches (deposit, withdraw, borrow, repay, liquidate)
+//! - Per-operation pause switches (deposit, withdraw, borrow, repay, liquidate, flash_loan, bridge_acceptance)
 //! - Global emergency pause that halts all operations immediately
 //!
 //! ## Safety
@@ -107,6 +107,10 @@ pub enum PauseOperation {
     Repay,
     /// Pause liquidation operations
     Liquidate,
+    /// Pause flash loan operations
+    FlashLoan,
+    /// Pause bridge acceptance (deposit) operations
+    BridgeAcceptance,
     /// Pause all operations (emergency)
     All,
 }
@@ -181,6 +185,8 @@ fn create_default_pause_switches(env: &Env) -> Map<Symbol, bool> {
     switches.set(Symbol::new(env, "pause_borrow"), false);
     switches.set(Symbol::new(env, "pause_repay"), false);
     switches.set(Symbol::new(env, "pause_liquidate"), false);
+    switches.set(Symbol::new(env, "pause_flash_loan"), false);
+    switches.set(Symbol::new(env, "pause_bridge_acceptance"), false);
     switches
 }
 

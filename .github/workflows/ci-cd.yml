@@ -79,6 +79,48 @@ jobs:
           cargo install cargo-audit
           cargo audit
 
+  fuzzing:
+    name: Contracts — Fuzz (Smoke)
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install clang (libFuzzer toolchain)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm
+
+      - name: Install Rust toolchain (nightly for sanitizers)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            stellar-lend/target
+          key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('stellar-lend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fuzz-
+
+      - name: Install cargo-fuzz
+        run: cargo +nightly install cargo-fuzz --locked
+
+      - name: Corpus sanity check
+        run: bash scripts/fuzz/check_corpus.sh
+
+      - name: Run fuzz smoke suite
+        env:
+          FUZZ_RUNS: "3000"
+          FUZZ_TIMEOUT_SEC: "5"
+        run: bash scripts/fuzz/run_ci_smoke.sh
+
   # ─────────────────────────────────────────────
   # Workspace — validate root monorepo scripts
   # ─────────────────────────────────────────────
@@ -207,12 +249,13 @@ jobs:
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [contracts, api, oracle, workspace]
+    needs: [contracts, fuzzing, api, oracle, workspace]
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
           echo "Contracts: ${{ needs.contracts.result }} (non-blocking — pre-existing issues)"
+          echo "Fuzzing:   ${{ needs.fuzzing.result }}"
           echo "API:       ${{ needs.api.result }}"
           echo "Oracle:    ${{ needs.oracle.result }}"
           echo "Workspace: ${{ needs.workspace.result }}"
@@ -220,6 +263,7 @@ jobs:
           if [[ "${{ needs.api.result }}" != "success" ]] || \
              [[ "${{ needs.oracle.result }}" != "success" ]] || \
              [[ "${{ needs.contracts.result }}" != "success" ]] || \
+             [[ "${{ needs.fuzzing.result }}" != "success" ]] || \
              [[ "${{ needs.workspace.result }}" != "success" ]]; then
             echo "::error::One or more quality checks failed. PR cannot be merged."
             exit 1

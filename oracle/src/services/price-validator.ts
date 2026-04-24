@@ -23,6 +23,7 @@ export interface ValidatorConfig {
   maxStalenessSeconds: number;
   minPrice: number;
   maxPrice: number;
+  sourceWeights: Record<string, number>;
 }
 
 /**
@@ -33,6 +34,11 @@ const DEFAULT_CONFIG: ValidatorConfig = {
   maxStalenessSeconds: 300,
   minPrice: 0.0000001,
   maxPrice: 1000000000,
+  sourceWeights: {
+    'coingecko': 1.0,
+    'binance': 0.95,
+    'coinmarketcap': 1.0,
+  },
 };
 
 /**
@@ -156,14 +162,9 @@ export class PriceValidator {
       confidence -= Math.min(30, deviationRatio * 30);
     }
 
-    switch (raw.source) {
-      case 'coingecko':
-        confidence += 0;
-        break;
-      case 'binance':
-        confidence -= 5;
-        break;
-    }
+    // Apply configurable source weight
+    const sourceWeight = this.config.sourceWeights[raw.source] || 1.0;
+    confidence *= sourceWeight;
 
     return Math.max(0, Math.min(100, confidence));
   }

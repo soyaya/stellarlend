@@ -61,6 +61,7 @@ describe('Configuration', () => {
       process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
       process.env.CACHE_TTL_SECONDS = '60';
       process.env.UPDATE_INTERVAL_MS = '120000';
+      process.env.DRY_RUN = 'true';
       process.env.MAX_PRICE_DEVIATION_PERCENT = '15';
       process.env.PRICE_STALENESS_THRESHOLD_SECONDS = '600';
       process.env.LOG_LEVEL = 'debug';
@@ -69,9 +70,34 @@ describe('Configuration', () => {
 
       expect(config.cacheTtlSeconds).toBe(60);
       expect(config.updateIntervalMs).toBe(120000);
+      expect(config.dryRun).toBe(true);
       expect(config.maxPriceDeviationPercent).toBe(15);
       expect(config.priceStaleThresholdSeconds).toBe(600);
       expect(config.logLevel).toBe('debug');
+    });
+
+    it('should default DRY_RUN to false when not provided', () => {
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+      delete process.env.DRY_RUN;
+
+      const config = loadConfig();
+
+      expect(config.dryRun).toBe(false);
+    });
+
+    it('should parse boolean-like DRY_RUN values', () => {
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+      process.env.DRY_RUN = '1';
+
+      const enabledConfig = loadConfig();
+      expect(enabledConfig.dryRun).toBe(true);
+
+      process.env.DRY_RUN = 'off';
+
+      const disabledConfig = loadConfig();
+      expect(disabledConfig.dryRun).toBe(false);
     });
 
     it('should throw error when CONTRACT_ID is missing', () => {
@@ -180,6 +206,114 @@ describe('Configuration', () => {
         const config = loadConfig();
         expect(config.logLevel).toBe(level);
       });
+    });
+
+    it('should use testnet defaults when STELLAR_NETWORK is testnet', () => {
+      process.env.STELLAR_NETWORK = 'testnet';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.stellarNetwork).toBe('testnet');
+      expect(config.stellarRpcUrl).toBe('https://soroban-testnet.stellar.org');
+      expect(config.baseFee).toBe(100000);
+    });
+
+    it('should use mainnet defaults when STELLAR_NETWORK is mainnet', () => {
+      process.env.STELLAR_NETWORK = 'mainnet';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.stellarNetwork).toBe('mainnet');
+      expect(config.stellarRpcUrl).toBe('https://soroban.stellar.org');
+      expect(config.baseFee).toBe(200000);
+    });
+
+    it('should override network RPC URL when STELLAR_RPC_URL is provided', () => {
+      process.env.STELLAR_NETWORK = 'mainnet';
+      process.env.STELLAR_RPC_URL = 'https://custom-rpc.example.com';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.stellarNetwork).toBe('mainnet');
+      expect(config.stellarRpcUrl).toBe('https://custom-rpc.example.com');
+      expect(config.baseFee).toBe(200000); // Should still use network default for baseFee
+    });
+
+    it('should override network base fee when STELLAR_BASE_FEE is provided', () => {
+      process.env.STELLAR_NETWORK = 'testnet';
+      process.env.STELLAR_BASE_FEE = '150000';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.stellarNetwork).toBe('testnet');
+      expect(config.stellarRpcUrl).toBe('https://soroban-testnet.stellar.org'); // Should still use network default for RPC
+      expect(config.baseFee).toBe(150000);
+    });
+
+    it('should use default maxFee when STELLAR_MAX_FEE is not provided', () => {
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.maxFee).toBe(1000000);
+    });
+
+    it('should override maxFee when STELLAR_MAX_FEE is provided', () => {
+      process.env.STELLAR_BASE_FEE = '150000';
+      process.env.STELLAR_MAX_FEE = '450000';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.baseFee).toBe(150000);
+      expect(config.maxFee).toBe(450000);
+    });
+
+    it('should reject maxFee lower than baseFee', () => {
+      process.env.STELLAR_BASE_FEE = '200000';
+      process.env.STELLAR_MAX_FEE = '150000';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      expect(() => loadConfig()).toThrow('Invalid environment configuration');
+    });
+
+    it('should override both network defaults when both env vars are provided', () => {
+      process.env.STELLAR_NETWORK = 'testnet';
+      process.env.STELLAR_RPC_URL = 'https://custom-rpc.example.com';
+      process.env.STELLAR_BASE_FEE = '300000';
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.stellarNetwork).toBe('testnet');
+      expect(config.stellarRpcUrl).toBe('https://custom-rpc.example.com');
+      expect(config.baseFee).toBe(300000);
+    });
+
+    it('should include baseFee in configuration', () => {
+      process.env.CONTRACT_ID = 'CTEST123456789';
+      process.env.ADMIN_SECRET_KEY = 'STEST123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
+
+      const config = loadConfig();
+
+      expect(config.baseFee).toBeDefined();
+      expect(typeof config.baseFee).toBe('number');
+      expect(config.baseFee).toBeGreaterThan(0);
+      expect(config.maxFee).toBeDefined();
+      expect(typeof config.maxFee).toBe('number');
+      expect(config.maxFee).toBeGreaterThanOrEqual(config.baseFee);
     });
   });
 

@@ -137,11 +137,27 @@
           },
           "error": {
             "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code for client-side error handling and i18n",
+            "enum": [
+              "VALIDATION_ERROR",
+              "INSUFFICIENT_BALANCE",
+              "CONTRACT_ERROR",
+              "NETWORK_ERROR",
+              "RATE_LIMITED",
+              "UNAUTHORIZED",
+              "NOT_FOUND",
+              "CONFLICT",
+              "INTERNAL_SERVER_ERROR"
+            ]
           }
         },
         "required": [
           "success",
-          "error"
+          "error",
+          "code"
         ]
       }
     }

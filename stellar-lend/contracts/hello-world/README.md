@@ -1,24 +1,22 @@
 # Hello-World Contract (StellarLend Core)
 
-This contract exposes the core API for StellarLend, including lending/borrowing, cross-asset operations, bridges, analytics, monitoring, recovery/multisig, upgrades, data and configuration.
+This contract exposes the current public API for the main StellarLend protocol contract.
 
 ## Key Entry Points
 
-- Initialization: `initialize(admin)`
-- Core: `deposit_collateral`, `borrow`, `repay`, `withdraw`, `liquidate`
-- Cross-Asset: `set_asset_params`, `deposit_collateral_asset`, `borrow_asset`, `repay_asset`, `withdraw_asset`, `get_cross_position_summary`
-- Oracle & Pricing: `set_asset_price`, `oracle_*`, `set_price_cache_ttl`
-- Governance: `gov_*`
-- AMM: `set_amm_pool`, `amm_swap`, `amm_add_liquidity`, `amm_remove_liquidity`
-- Flash Loans: `flash_loan`, `set_flash_loan_fee_bps`
-- Bridge: `register_bridge`, `set_bridge_fee`, `bridge_deposit`, `bridge_withdraw`, `list_bridges`, `get_bridge_config`
-- Analytics: metrics updated on core actions; getters via storage (see code)
-- Monitoring: `monitor_report_health`, `monitor_report_performance`, `monitor_report_security`, `monitor_get`
-- Recovery: `set_guardians`, `start_recovery`, `approve_recovery`, `execute_recovery`
-- Multisig: `ms_set_admins`, `ms_propose_set_min_cr`, `ms_approve`, `ms_execute`
-- Upgrade: `upgrade_propose`, `upgrade_approve`, `upgrade_execute`, `upgrade_rollback`, `upgrade_status`
-- Data Store: `data_save`, `data_load`, `data_backup`, `data_restore`, `data_migrate_bump_version`
-- Config: `config_set`, `config_get`, `config_backup`, `config_restore`
+- Initialization: `initialize(admin)`, `transfer_admin(caller, new_admin)`
+- Governance setup: `gov_initialize(...)`
+- Core lending: `deposit_collateral`, `borrow_asset`, `repay_debt`, `withdraw_collateral`, `liquidate`
+- Risk controls: `set_risk_params`, `set_emergency_pause`, `can_be_liquidated`, `get_max_liquidatable_amount`, `get_liquidation_incentive_amount`, `require_min_collateral_ratio`
+- Flash loans: `execute_flash_loan`, `repay_flash_loan`, `configure_flash_loan`
+- Treasury: `set_treasury`, `get_treasury`, `get_reserve_balance`, `claim_reserves`, `set_fee_config`, `get_fee_config`
+- Analytics and queries: `get_protocol_stats`, `get_protocol_report`, `get_user_position`, `get_user_report`, `get_recent_activity`, `get_user_asset_collateral`, `get_user_asset_list`, `get_user_total_collateral_value`, `get_health_factor`
+- Asset configuration: `update_asset_config`
 
-Refer to `src/lib.rs` for detailed types and events.
+Current note:
+
+- `HelloContract` does not currently expose dedicated upgrade entrypoints from `src/lib.rs`.
+- The separate upgrade approval manager documented in [`../../../docs/upgrade-mechanism.md`](../../../docs/upgrade-mechanism.md) lives under `stellar-lend/contracts/lending`.
+
+Refer to `src/lib.rs` for the current public entrypoints and to [`../../../docs/event-indexing.md`](../../../docs/event-indexing.md) for event topics and indexing guidance.
 

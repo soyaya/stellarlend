@@ -1,6 +1,6 @@
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, log, symbol_short, Address,
-    Env, String, Symbol, Vec, I256,
+    BytesN, Env, String, Symbol, Vec, I256,
 };
 
 // ── Error type ────────────────────────────────────────────────────────────────
@@ -22,6 +22,8 @@ pub enum ContractError {
     AmountNotPositive = 11,
     AmountBelowMinimum = 12,
     Overflow = 13,
+    /// Bridge acceptance (deposit) operations are paused
+    BridgeAcceptancePaused = 14,
 }
 
 #[contractevent]
@@ -62,6 +64,13 @@ pub struct BridgeWithdrawalEvent {
     pub amount: i128,
 }
 
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct BridgeAcceptancePauseEvent {
+    pub paused: bool,
+    pub admin: Address,
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MAX_FEE_BPS: u64 = 1_000; // 10 % ceiling
@@ -88,6 +97,8 @@ pub struct BridgeConfig {
 pub enum DataKey {
     Bridge(String),
     BridgeList,
+    /// Global pause flag for bridge acceptance (deposit) operations
+    BridgeAcceptancePaused,
 }
 
 #[contract]
@@ -260,6 +271,16 @@ impl BridgeContract {
     ) -> Result<i128, ContractError> {
         sender.require_auth();
 
+        // Check bridge acceptance pause
+        if env
+            .storage()
+            .persistent()
+            .get::<DataKey, bool>(&DataKey::BridgeAcceptancePaused)
+            .unwrap_or(false)
+        {
+            return Err(ContractError::BridgeAcceptancePaused);
+        }
+
         if amount <= 0 {
             return Err(ContractError::AmountNotPositive);
         }
@@ -344,6 +365,36 @@ impl BridgeContract {
         Ok(())
     }
 
+    // ── set_bridge_acceptance_paused ──────────────────────────────────────────
+
+    /// Admin: pause or unpause all bridge acceptance (deposit) operations.
+    pub fn set_bridge_acceptance_paused(
+        env: Env,
+        caller: Address,
+        paused: bool,
+    ) -> Result<(), ContractError> {
+        Self::require_admin(&env, &caller)?;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::BridgeAcceptancePaused, &paused);
+
+        BridgeAcceptancePauseEvent {
+            paused,
+            admin: caller,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Query whether bridge acceptance is currently paused.
+    pub fn is_bridge_acceptance_paused(env: Env) -> bool {
+        env.storage()
+            .persistent()
+            .get::<DataKey, bool>(&DataKey::BridgeAcceptancePaused)
+            .unwrap_or(false)
+    }
+
     // ── transfer_admin ────────────────────────────────────────────────────────
 
     /// Admin: transfer admin rights to a new address.
@@ -381,5 +432,70 @@ impl BridgeContract {
             .div(&I256::from_i128(&env, 10000))
             .to_i128()
             .unwrap_or(0)
+    }
+
+    // ── Upgrade Management ────────────────────────────────────────────────────
+
+    pub fn upgrade_init(
+        env: Env,
+        admin: Address,
+        current_wasm_hash: BytesN<32>,
+        required_approvals: u32,
+    ) {
+        stellarlend_common::upgrade::UpgradeManager::init(
+            env,
+            admin,
+            current_wasm_hash,
+            required_approvals,
+        );
+    }
+
+    pub fn upgrade_add_approver(env: Env, caller: Address, approver: Address) {
+        stellarlend_common::upgrade::UpgradeManager::add_approver(env, caller, approver);
+    }
+
+    pub fn upgrade_remove_approver(env: Env, caller: Address, approver: Address) {
+        stellarlend_common::upgrade::UpgradeManager::remove_approver(env, caller, approver);
+    }
+
+    pub fn upgrade_propose(
+        env: Env,
+        caller: Address,
+        new_wasm_hash: BytesN<32>,
+        new_version: u32,
+    ) -> u64 {
+        stellarlend_common::upgrade::UpgradeManager::upgrade_propose(
+            env,
+            caller,
+            new_wasm_hash,
+            new_version,
+        )
+    }
+
+    pub fn upgrade_approve(env: Env, caller: Address, proposal_id: u64) -> u32 {
+        stellarlend_common::upgrade::UpgradeManager::upgrade_approve(env, caller, proposal_id)
+    }
+
+    pub fn upgrade_execute(env: Env, caller: Address, proposal_id: u64) {
+        stellarlend_common::upgrade::UpgradeManager::upgrade_execute(env, caller, proposal_id);
+    }
+
+    pub fn upgrade_rollback(env: Env, caller: Address, proposal_id: u64) {
+        stellarlend_common::upgrade::UpgradeManager::upgrade_rollback(env, caller, proposal_id);
+    }
+
+    pub fn upgrade_status(
+        env: Env,
+        proposal_id: u64,
+    ) -> stellarlend_common::upgrade::UpgradeStatus {
+        stellarlend_common::upgrade::UpgradeManager::upgrade_status(env, proposal_id)
+    }
+
+    pub fn current_wasm_hash(env: Env) -> BytesN<32> {
+        stellarlend_common::upgrade::UpgradeManager::current_wasm_hash(env)
+    }
+
+    pub fn current_version(env: Env) -> u32 {
+        stellarlend_common::upgrade::UpgradeManager::current_version(env)
     }
 }

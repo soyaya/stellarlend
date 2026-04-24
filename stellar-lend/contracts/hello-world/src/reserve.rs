@@ -109,6 +109,7 @@ pub enum ReserveDataKey {
 /// # Security
 /// * No authorization check - should be called internally during asset initialization
 /// * Validates reserve factor is within acceptable bounds
+#[allow(deprecated)]
 pub fn initialize_reserve_config(
     env: &Env,
     asset: Option<Address>,
@@ -156,6 +157,7 @@ pub fn initialize_reserve_config(
 /// * Requires admin authorization
 /// * Validates reserve factor bounds
 /// * Emits event for transparency
+#[allow(deprecated)]
 pub fn set_reserve_factor(
     env: &Env,
     caller: Address,
@@ -229,6 +231,7 @@ pub fn get_reserve_factor(env: &Env, asset: Option<Address>) -> i128 {
 /// reserve_amount = interest_amount * reserve_factor / 10000
 /// lender_amount = interest_amount - reserve_amount
 /// ```
+#[allow(deprecated)]
 pub fn accrue_reserve(
     env: &Env,
     asset: Option<Address>,
@@ -301,6 +304,7 @@ pub fn get_reserve_balance(env: &Env, asset: Option<Address>) -> i128 {
 /// * Requires admin authorization
 /// * Validates treasury address is not the contract itself
 /// * Emits event for transparency
+#[allow(deprecated)]
 pub fn set_treasury_address(
     env: &Env,
     caller: Address,
@@ -368,7 +372,8 @@ pub fn get_treasury_address(env: &Env) -> Option<Address> {
 /// * Updates reserve balance before transfer (checks-effects-interactions)
 /// * Emits event for transparency
 /// * Cannot withdraw user funds (only accrued reserves)
-pub fn withdraw_reserve_to_treasury(
+#[allow(deprecated)]
+pub fn withdraw_reserve_funds(
     env: &Env,
     caller: Address,
     asset: Option<Address>,

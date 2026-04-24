@@ -8,6 +8,7 @@ Contents:
 - Admin Operations
 - Monitoring & Analytics
 - Upgrade & Configuration
+- Event Indexing
 - Cross-Chain Bridge
 - Social Recovery & Multisig
 
@@ -17,6 +18,8 @@ StellarLend is a lending and borrowing protocol built on Soroban. It features cr
 ## Test Documentation
 
 - **[Borrow Function Tests](BORROW_TESTS.md)** - Comprehensive test suite documentation for the borrow functionality, covering all validation paths, edge cases, interest accrual, pause functionality, events, and security scenarios.
+- **[Event Indexing Guide](event-indexing.md)** - Catalog of contract events, indexing options for RPC, Mercury, and SubQuery, and the current status of `stellar-lend/indexing_system/`.
+- **[Upgrade Mechanism](upgrade-mechanism.md)** - Runbook for planned and emergency upgrades, rollback handling, and storage compatibility guidance.
 
 ## Modules and Features
 - Interest rate model with smoothing
@@ -29,7 +32,7 @@ StellarLend is a lending and borrowing protocol built on Soroban. It features cr
 - Monitoring: health, performance, and security alerts
 - Social recovery: guardians, timelock approvals, execution
 - Multisig for admin min-collateral changes
-- Upgrade: propose/approve/execute/rollback and status
+- Upgrade tracking and approval manager in `contracts/lending`; see `upgrade-mechanism.md` for current scope and limitations
 - Data management: generic data store, backup/restore, migration
 - Configuration: versioned param store with backup/restore
 
@@ -41,7 +44,7 @@ Key admin entrypoints (see contract for full list):
 - `set_price_cache_ttl(caller, ttl)`
 - `register_bridge(caller, network_id, bridge, fee_bps)`
 - `set_bridge_fee(caller, network_id, fee_bps)`
-- `upgrade_propose/approve/execute/rollback`
+- `upgrade_propose/approve/execute/rollback` in the separate lending workspace upgrade manager
 - `config_set/config_backup/config_restore`
 - `ms_set_admins`, `ms_propose_set_min_cr`, `ms_approve`, `ms_execute`
 
@@ -49,6 +52,7 @@ Key admin entrypoints (see contract for full list):
 - `record_user_action(user, action)` updates risk and emits events
 - Analytics auto-update on deposit/borrow/repay/withdraw
 - Monitoring entrypoints: `monitor_report_health/performance/security`, `monitor_get`
+- Event indexing details, topic layouts, and decoding examples are documented in [event-indexing.md](event-indexing.md)
 
 ### Analytics Read APIs
 - `get_protocol_report()` & `get_user_report(address)` surface typed structs (`ProtocolReport`, `UserReport`) containing
@@ -77,8 +81,13 @@ Key admin entrypoints (see contract for full list):
   Returns a feed where `entries[0]` is the most recent action; set `limit` to `0` for metadata-only responses.
 
 ## Upgrade & Configuration
-- `upgrade_status` returns current, previous, pending version and metadata
+- The separate lending workspace ships an `UpgradeManager` with proposal, approval, execute, and rollback metadata tracking
+- `upgrade_status` returns tracked version state for that manager
+- See [upgrade-mechanism.md](upgrade-mechanism.md) for the exact process and the current limitation that code swaps are not automated by the manager itself
 - Config supports version bumps, validation, and easy backup/restore
+
+## Event Indexing
+- `event-indexing.md` covers the current `hello-world` event surface, additional workspace contracts, testnet/mainnet indexing choices, and why `stellar-lend/indexing_system/` should currently be treated as deprecated prototype code
 
 ## Cross-Chain Bridge
 - Register networks and fees, and use `bridge_deposit/bridge_withdraw` to move balances with transparent fees

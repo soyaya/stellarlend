@@ -1,0 +1,15 @@
+{
+  "name": "mainnet-compatible-defaults",
+  "referenceNetwork": "pubnet",
+  "timestampMode": "latest-reference-ledger",
+  "lending": {
+    "minCollateralRatio": 11000,
+    "liquidationThreshold": 10500,
+    "emergencyPaused": false
+  },
+  "amm": {
+    "defaultSlippage": 100,
+    "maxSlippage": 1000,
+    "autoSwapThreshold": 1000000
+  }
+}

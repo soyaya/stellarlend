@@ -6,6 +6,12 @@ StellarLend is a decentralized finance (DeFi) lending protocol built on the Stel
 
 The protocol is built with production-grade security in mind, featuring social recovery, multisig governance, upgrade mechanisms, and comprehensive monitoring and analytics. Whether you're building a DeFi application, integrating lending capabilities, or contributing to the protocol's development, StellarLend offers a complete, auditable, and extensible foundation for decentralized lending on Stellar.
 
+Key operational guides:
+
+- [docs/event-indexing.md](docs/event-indexing.md)
+- [docs/upgrade-mechanism.md](docs/upgrade-mechanism.md)
+- [docs/DEV_TOOLING.md](docs/DEV_TOOLING.md)
+
 ---
 
 ## Features
@@ -21,7 +27,7 @@ The protocol is built with production-grade security in mind, featuring social r
 - **Cross-Chain Bridge**: Interface for cross-chain asset transfers with fee management
 - **Governance**: Multisig support for critical parameter changes
 - **Social Recovery**: Guardian-based recovery mechanisms for enhanced security
-- **Upgrade System**: Propose, approve, execute, and rollback contract upgrades
+- **Upgrade Management**: Separate approval and version-tracking manager for governed upgrades, with rollback metadata and explicit operational runbooks
 - **Analytics & Monitoring**: Comprehensive protocol and user analytics with activity feeds
 - **Comprehensive Event Logging**: Emits events for all major protocol actions
 
@@ -312,7 +318,9 @@ For a complete list of entrypoints including AMM, flash loans, bridge, governanc
 ## Documentation
 
 - **[Protocol Documentation](docs/README.md)**: Comprehensive protocol documentation including modules, admin operations, monitoring, analytics, and upgrade procedures
+- **[Upgrade Authorization](docs/UPGRADE_AUTHORIZATION.md)**: Strict upgrade authorization boundaries, key rotation workflow, and security assumptions
 - **[Storage Layout and Migration](docs/storage.md)**: Detailed documentation of the contract's persistent storage structure, keys, types, and upgrade/migration strategies
+- **[Fuzzing Strategy](docs/fuzzing.md)**: Coverage-guided, property-based fuzzing harnesses (cargo-fuzz/libFuzzer) for contract edge cases
 - **[Contract README](stellar-lend/contracts/hello-world/README.md)**: Contract-specific documentation and entrypoint reference
 - **[CI/CD Documentation](ci-doc.md)**: Continuous integration setup and local reproduction guide
 - **[Example Reports](docs/examples/)**: Example JSON outputs for protocol and user analytics
@@ -383,7 +391,7 @@ When reporting issues, please include:
 
 ### Security
 
-If you discover a security vulnerability, please **do not** open a public issue. Instead, contact the maintainers directly through a secure channel.
+If you discover a security vulnerability, please **do not** open a public issue. Instead, see our [SECURITY.md](SECURITY.md) for disclosure instructions and contact information.
 
 ---
 

@@ -76,6 +76,24 @@ export interface HealthCheckResponse {
   };
 }
 
+export interface ProtocolStatsResponse {
+  totalDeposits: string;
+  totalBorrows: string;
+  utilizationRate: string;
+  numberOfUsers: number;
+  tvl: string;
+  stablecoinStats?: StablecoinAssetStats[];
+}
+
+export interface StablecoinAssetStats {
+  asset: string;
+  price: string;
+  targetPrice: string;
+  deviationBps: number;
+  stabilityFeeBps: number;
+  isDepegged: boolean;
+}
+
 export enum TransactionStatus {
   PENDING = 'pending',
   SUCCESS = 'success',
@@ -114,3 +132,25 @@ export type ServerMessage =
   | { type: 'unsubscribed'; assets: string[] }
   | { type: 'pong' }
   | { type: 'error'; message: string };
+
+// ─── Transaction History Types ──────────────────────────────────────────────────
+
+export interface TransactionHistoryItem {
+  transactionHash: string;
+  type: LendingOperation;
+  amount: string;
+  assetAddress?: string;
+  timestamp: string;
+  status: 'success' | 'failed' | 'pending';
+  ledger?: number;
+  memo?: string;
+}
+
+import { PaginatedResponse, PaginationParams } from './pagination';
+
+export type TransactionHistoryResponse = PaginatedResponse<TransactionHistoryItem>;
+
+export interface TransactionHistoryQuery extends PaginationParams {
+  userAddress: string;
+}
+

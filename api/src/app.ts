@@ -1,15 +1,26 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { MemoryStore } from 'express-rate-limit';
 import { config } from './config';
+import { bodySizeLimitMiddleware } from './middleware/bodySizeLimit';
 import lendingRoutes from './routes/lending.routes';
 import healthRoutes from './routes/health.routes';
+import protocolRoutes from './routes/protocol.routes';
+import portfolioRoutes from './routes/portfolio.routes';
 import { errorHandler } from './middleware/errorHandler';
+import { idempotencyMiddleware } from './middleware/idempotency';
 import { swaggerSpec } from './config/swagger';
 import logger from './utils/logger';
+import { requestIdMiddleware } from './middleware/requestId';
+import { sanitizeInput } from './middleware/sanitizeInput';
+import { redisCacheService } from './services/redisCache.service';
 
 const app: Application = express();
+app.use(requestIdMiddleware);
+
+const ipRateLimitStore = new MemoryStore();
+const userRateLimitStore = new MemoryStore();
 
 app.use(
   helmet({
@@ -32,13 +43,16 @@ if (config.server.env === 'production') {
 }
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: config.bodySizeLimit.limit }));
+app.use(express.urlencoded({ extended: true, limit: config.bodySizeLimit.limit }));
+app.use(sanitizeInput);
+app.use(bodySizeLimitMiddleware);
 
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.maxRequests,
   message: 'Too many requests from this IP, please try again later.',
+  store: ipRateLimitStore,
 });
 
 app.use('/api/', limiter);
@@ -47,6 +61,7 @@ app.use('/api/', limiter);
 const userRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
   max: 10, // 10 requests per minute per user
+  store: userRateLimitStore,
   keyGenerator: (req) => {
     // Try to get userAddress from request body first, then query params, then fall back to IP
     const userAddress = req.body?.userAddress || req.query?.userAddress || req.ip;
@@ -73,8 +88,16 @@ app.get('/api/openapi.json', (_req, res) => {
 });
 
 app.use('/api/health', healthRoutes);
-app.use('/api/lending', userRateLimiter, lendingRoutes);
+app.use('/api/protocol', protocolRoutes);
+app.use('/api/lending', idempotencyMiddleware, userRateLimiter, lendingRoutes);
+app.use('/api/portfolio', portfolioRoutes);
 
 app.use(errorHandler);
+
+void redisCacheService.warmup();
+
+export async function resetRateLimiters(): Promise<void> {
+  await Promise.all([ipRateLimitStore.resetAll(), userRateLimitStore.resetAll()]);
+}
 
 export default app;

@@ -2,9 +2,12 @@
 resolver = "2"
 members = [
   "client",
-  "contracts/*",
-  "indexing_system",
+  "contracts/amm",
+  "contracts/bridge",
+  "contracts/common",
+  "contracts/lending",
 ]
+exclude = ["fuzz"]
 
 [workspace.dependencies]
 soroban-sdk = "23.4.1"

@@ -2,11 +2,12 @@
  * Cache Service
  *
  * In-memory caching layer with TTL support and LRU eviction.
- * Supports Redis too.
+ * Supports Redis with fallback to in-memory when Redis unavailable.
  */
 
 import type { CacheEntry } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import Redis from 'ioredis';
 
 /**
  * Cache config
@@ -30,7 +31,7 @@ const DEFAULT_CONFIG: CacheConfig = {
 };
 
 /**
- * In-memory LRU cache implementation.
+ * In-memory LRU cache implementation with Redis support.
  *
  * Access order is maintained by deleting and re-inserting keys into the Map
  * on every read, so the Map's natural insertion order reflects LRU order
@@ -42,22 +43,88 @@ export class Cache {
   private hits: number = 0;
   private misses: number = 0;
   private evictions: number = 0;
+  private redis?: Redis;
+  private usingRedis: boolean = false;
 
   constructor(config: Partial<CacheConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize Redis if URL is provided
+    if (this.config.redisUrl) {
+      this.initializeRedis();
+    }
 
     logger.info('Cache initialized', {
       defaultTtlSeconds: this.config.defaultTtlSeconds,
       maxEntries: this.config.maxEntries,
       evictBatchFraction: this.config.evictBatchFraction,
+      usingRedis: this.usingRedis,
+      redisUrl: this.config.redisUrl ? 'configured' : 'not configured',
     });
+  }
+
+  /**
+   * Initialize Redis connection
+   */
+  private initializeRedis(): void {
+    try {
+      this.redis = new Redis(this.config.redisUrl!, {
+        retryDelayOnFailover: 100,
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+      });
+
+      this.redis.on('connect', () => {
+        logger.info('Redis connected');
+        this.usingRedis = true;
+      });
+
+      this.redis.on('error', (error) => {
+        logger.warn('Redis connection failed, falling back to in-memory cache', { error });
+        this.usingRedis = false;
+        this.redis?.disconnect();
+        this.redis = undefined;
+      });
+
+      // Test connection
+      this.redis.connect().catch(() => {
+        logger.warn('Redis connection failed during initialization, using in-memory cache');
+        this.usingRedis = false;
+        this.redis = undefined;
+      });
+    } catch (error) {
+      logger.warn('Failed to initialize Redis, using in-memory cache', { error });
+      this.usingRedis = false;
+      this.redis = undefined;
+    }
   }
 
   /**
    * Get a value from cache.
    * Moves the accessed entry to the "most recently used" position.
    */
-  get<T>(key: string): T | undefined {
+  async get<T>(key: string): Promise<T | undefined> {
+    // Try Redis first if available
+    if (this.usingRedis && this.redis) {
+      try {
+        const value = await this.redis.get(key);
+        if (value !== null) {
+          const parsed = JSON.parse(value) as CacheEntry<T>;
+          if (Date.now() <= parsed.expiresAt) {
+            this.hits++;
+            return parsed.data;
+          } else {
+            // Expired in Redis, remove it
+            await this.redis.del(key);
+          }
+        }
+      } catch (error) {
+        logger.warn('Redis get failed, falling back to in-memory', { error, key });
+        this.usingRedis = false;
+      }
+    }
+
+    // Fallback to in-memory cache
     const entry = this.store.get(key) as CacheEntry<T> | undefined;
 
     if (!entry) {
@@ -84,16 +151,9 @@ export class Cache {
    * Set a value in cache with optional TTL.
    * Performs LRU batch eviction when at capacity.
    */
-  set<T>(key: string, value: T, ttlSeconds?: number): void {
+  async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
     const ttl = ttlSeconds ?? this.config.defaultTtlSeconds;
     const now = Date.now();
-
-    // If key already exists, remove it first so it gets a fresh LRU position
-    if (this.store.has(key)) {
-      this.store.delete(key);
-    } else if (this.store.size >= this.config.maxEntries) {
-      this.evictLRUBatch();
-    }
 
     const entry: CacheEntry<T> = {
       data: value,
@@ -101,20 +161,58 @@ export class Cache {
       expiresAt: now + ttl * 1000,
     };
 
+    // Try Redis first if available
+    if (this.usingRedis && this.redis) {
+      try {
+        await this.redis.setex(key, ttl, JSON.stringify(entry));
+      } catch (error) {
+        logger.warn('Redis set failed, falling back to in-memory', { error, key });
+        this.usingRedis = false;
+      }
+    }
+
+    // Always store in memory as fallback
+    // If key already exists, remove it first so it gets a fresh LRU position
+    if (this.store.has(key)) {
+      this.store.delete(key);
+    } else if (this.store.size >= this.config.maxEntries) {
+      this.evictLRUBatch();
+    }
+
     this.store.set(key, entry);
   }
 
   /**
    * Delete a specific key
    */
-  delete(key: string): boolean {
+  async delete(key: string): Promise<boolean> {
+    // Try Redis first if available
+    if (this.usingRedis && this.redis) {
+      try {
+        await this.redis.del(key);
+      } catch (error) {
+        logger.warn('Redis delete failed, using in-memory only', { error, key });
+        this.usingRedis = false;
+      }
+    }
+
     return this.store.delete(key);
   }
 
   /**
    * Clear all entries
    */
-  clear(): void {
+  async clear(): Promise<void> {
+    // Try Redis first if available
+    if (this.usingRedis && this.redis) {
+      try {
+        await this.redis.flushdb();
+      } catch (error) {
+        logger.warn('Redis clear failed, using in-memory only', { error });
+        this.usingRedis = false;
+      }
+    }
+
     this.store.clear();
     logger.info('Cache cleared');
   }
@@ -122,7 +220,28 @@ export class Cache {
   /**
    * Check if key exists and is not expired
    */
-  has(key: string): boolean {
+  async has(key: string): Promise<boolean> {
+    // Try Redis first if available
+    if (this.usingRedis && this.redis) {
+      try {
+        const value = await this.redis.get(key);
+        if (value !== null) {
+          const parsed = JSON.parse(value) as CacheEntry<unknown>;
+          if (Date.now() <= parsed.expiresAt) {
+            return true;
+          } else {
+            // Expired in Redis, remove it
+            await this.redis.del(key);
+            return false;
+          }
+        }
+      } catch (error) {
+        logger.warn('Redis has check failed, using in-memory only', { error, key });
+        this.usingRedis = false;
+      }
+    }
+
+    // Fallback to in-memory cache
     const entry = this.store.get(key);
 
     if (!entry) {
@@ -223,32 +342,33 @@ export class PriceCache {
   private cache: Cache;
   private keyPrefix = 'price:';
 
-  constructor(ttlSeconds: number = 30) {
+  constructor(ttlSeconds: number = 30, redisUrl?: string) {
     this.cache = new Cache({
       defaultTtlSeconds: ttlSeconds,
       maxEntries: 100,
+      redisUrl,
     });
   }
 
   /**
    * Get cached price for an asset
    */
-  getPrice(asset: string): bigint | undefined {
-    return this.cache.get<bigint>(`${this.keyPrefix}${asset.toUpperCase()}`);
+  async getPrice(asset: string): Promise<bigint | undefined> {
+    return await this.cache.get<bigint>(`${this.keyPrefix}${asset.toUpperCase()}`);
   }
 
   /**
    * Cache a price for an asset
    */
-  setPrice(asset: string, price: bigint, ttlSeconds?: number): void {
-    this.cache.set(`${this.keyPrefix}${asset.toUpperCase()}`, price, ttlSeconds);
+  async setPrice(asset: string, price: bigint, ttlSeconds?: number): Promise<void> {
+    await this.cache.set(`${this.keyPrefix}${asset.toUpperCase()}`, price, ttlSeconds);
   }
 
   /**
    * Check if we have a cached price
    */
-  hasPrice(asset: string): boolean {
-    return this.cache.has(`${this.keyPrefix}${asset.toUpperCase()}`);
+  async hasPrice(asset: string): Promise<boolean> {
+    return await this.cache.has(`${this.keyPrefix}${asset.toUpperCase()}`);
   }
 
   /**
@@ -261,8 +381,8 @@ export class PriceCache {
   /**
    * Clear all cached prices
    */
-  clear(): void {
-    this.cache.clear();
+  async clear(): Promise<void> {
+    await this.cache.clear();
   }
 }
 
@@ -276,6 +396,6 @@ export function createCache(config?: Partial<CacheConfig>): Cache {
 /**
  * Create a price-specific cache
  */
-export function createPriceCache(ttlSeconds?: number): PriceCache {
-  return new PriceCache(ttlSeconds);
+export function createPriceCache(ttlSeconds?: number, redisUrl?: string): PriceCache {
+  return new PriceCache(ttlSeconds, redisUrl);
 }
