@@ -73,6 +73,20 @@ jobs:
           name: cross-contract-test-report
           path: stellar-lend/cross-contract-test-report.txt
 
+      - name: Run differential tests
+        run: |
+          cd stellar-lend
+          cargo test --package hello-world --lib tests::differential_test -- --nocapture 2>&1 | tee differential-test-report.txt
+          cargo test --package hello-world --lib tests::migration_verification_test -- --nocapture 2>&1 | tee -a differential-test-report.txt
+          grep "test result:" differential-test-report.txt
+
+      - name: Upload differential test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: differential-test-report
+          path: stellar-lend/differential-test-report.txt
+
       - name: Run security audit
         run: |
           cd stellar-lend
