@@ -10,6 +10,7 @@ Key operational guides:
 
 - [docs/event-indexing.md](docs/event-indexing.md)
 - [docs/upgrade-mechanism.md](docs/upgrade-mechanism.md)
+- [docs/DEV_TOOLING.md](docs/DEV_TOOLING.md)
 
 ---
 
