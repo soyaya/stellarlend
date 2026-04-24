@@ -52,24 +52,23 @@ export class OracleService {
   private config: OracleServiceConfig;
   private aggregator: PriceAggregator;
   private contractUpdater: ContractUpdater;
+  private providers: ProviderConfig[];
   private intervalId?: ReturnType<typeof setInterval>;
   private isRunning: boolean = false;
   private lastSuccessfulUpdate: number | null = null;
 
   constructor(config: OracleServiceConfig) {
+    this.validateConfig(config);
+
     // Store config but never log adminSecretKey directly
     this.config = config;
+    this.providers = this.normalizeProviders(config.providers);
 
     // Configure logging
     configureLogger(config.logLevel);
 
-    // Create providers
-    const providers: BasePriceProvider[] = [
-      createCoinGeckoProvider(
-        config.providers.find((p: ProviderConfig) => p.name === 'coingecko')?.apiKey
-      ),
-      createBinanceProvider(),
-    ];
+    // Create runtime providers for supported integrations only.
+    const providers = this.createRuntimeProviders(this.providers);
 
     // Create services
     const validator = createValidator({
@@ -100,7 +99,7 @@ export class OracleService {
       contractId: config.contractId,
       dryRun: !!config.dryRun,
       updateInterval: config.updateIntervalMs,
-      providers: this.aggregator.getProviders(),
+      providers: this.providers.map((provider) => provider.name),
     });
   }
 
@@ -232,9 +231,9 @@ export class OracleService {
       network: safe.stellarNetwork,
       contractId: safe.contractId,
       adminSecretKey: safe.adminSecretKey, // masked value
-      providers: this.aggregator.getProviders(),
+      providers: this.providers.map((provider) => ({ ...provider })),
       aggregatorStats: this.aggregator.getStats(),
-      circuitBreakers: this.aggregator.getCircuitBreakerMetrics(),
+      circuitBreakers: this.aggregator.getCircuitBreakerMetrics?.() ?? [],
     };
   }
 
@@ -243,6 +242,51 @@ export class OracleService {
    */
   async fetchPrice(asset: string) {
     return this.aggregator.getPrice(asset);
+  }
+
+  private validateConfig(config: OracleServiceConfig): void {
+    if (config.stellarNetwork !== 'testnet' && config.stellarNetwork !== 'mainnet') {
+      throw new Error(`Invalid stellar network: ${String(config.stellarNetwork)}`);
+    }
+
+    try {
+      new URL(config.stellarRpcUrl);
+    } catch {
+      throw new Error('Invalid stellar RPC URL');
+    }
+
+    if (!config.contractId?.trim()) {
+      throw new Error('Contract ID is required');
+    }
+  }
+
+  private normalizeProviders(providers: ProviderConfig[]): ProviderConfig[] {
+    if (providers.length === 1) {
+      return [{ ...providers[0], weight: 1 }];
+    }
+
+    return providers.map((provider) => ({ ...provider }));
+  }
+
+  private createRuntimeProviders(configuredProviders: ProviderConfig[]): BasePriceProvider[] {
+    const runtimeProviders: BasePriceProvider[] = [];
+
+    for (const provider of configuredProviders) {
+      if (!provider.enabled) {
+        continue;
+      }
+
+      if (provider.name === 'coingecko') {
+        runtimeProviders.push(createCoinGeckoProvider(provider.apiKey));
+        continue;
+      }
+
+      if (provider.name === 'binance') {
+        runtimeProviders.push(createBinanceProvider());
+      }
+    }
+
+    return runtimeProviders;
   }
 }
 

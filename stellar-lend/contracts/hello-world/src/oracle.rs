@@ -303,7 +303,11 @@ fn is_breaker_open(env: &Env, asset: &Address) -> bool {
     env.ledger().timestamp() < state.open_until
 }
 
-fn maybe_trip_breaker(env: &Env, asset: &Address, candidate_price: i128) -> Result<(), OracleError> {
+fn maybe_trip_breaker(
+    env: &Env,
+    asset: &Address,
+    candidate_price: i128,
+) -> Result<(), OracleError> {
     let config = get_oracle_config(env);
     if config.breaker_deviation_bps <= 0 {
         return Ok(());
@@ -369,7 +373,9 @@ fn set_oracle_sources_internal(env: &Env, asset: &Address, sources: &Vec<Address
 
 fn get_source_feed(env: &Env, asset: &Address, source: &Address) -> Option<PriceFeed> {
     let key = OracleDataKey::SourceFeed(asset.clone(), source.clone());
-    env.storage().persistent().get::<OracleDataKey, PriceFeed>(&key)
+    env.storage()
+        .persistent()
+        .get::<OracleDataKey, PriceFeed>(&key)
 }
 
 fn write_source_feed(env: &Env, asset: &Address, source: &Address, feed: &PriceFeed) {
@@ -398,7 +404,10 @@ fn append_observation(env: &Env, asset: &Address, price: i128) {
 
     let mut history = load_history(env, asset);
     let now = env.ledger().timestamp();
-    history.push_back(PriceObservation { price, timestamp: now });
+    history.push_back(PriceObservation {
+        price,
+        timestamp: now,
+    });
 
     // Trim to max_observations (drop oldest).
     while history.len() > config.max_observations {
@@ -517,7 +526,7 @@ fn aggregate_spot_price(env: &Env, asset: &Address) -> Result<i128, OracleError>
         }
     }
 
-    if candidates.len() == 0 {
+    if candidates.is_empty() {
         // Preserve historical behavior: if we saw feeds but they were stale, return StalePrice.
         if saw_any_feed && saw_stale_feed {
             return Err(OracleError::StalePrice);
@@ -547,7 +556,7 @@ fn compute_twap(env: &Env, asset: &Address, spot_price: i128) -> Result<i128, Or
     let window_start = now.saturating_sub(config.twap_window_seconds);
 
     let history = load_history(env, asset);
-    if history.len() == 0 {
+    if history.is_empty() {
         return Ok(spot_price);
     }
 
@@ -558,8 +567,8 @@ fn compute_twap(env: &Env, asset: &Address, spot_price: i128) -> Result<i128, Or
 
     // Find the first observation within window; include the immediately prior one
     // (so TWAP includes continuity from before the window).
-    let mut start_idx: usize = 0;
-    let mut i: usize = 0;
+    let mut start_idx: u32 = 0;
+    let mut i: u32 = 0;
     while i < history.len() {
         let obs = history.get(i).unwrap();
         if obs.timestamp >= window_start {
@@ -576,7 +585,7 @@ fn compute_twap(env: &Env, asset: &Address, spot_price: i128) -> Result<i128, Or
         prev.timestamp
     };
 
-    let mut idx = start_idx + 1;
+    let mut idx: u32 = start_idx + 1;
     while idx < history.len() {
         let cur = history.get(idx).unwrap();
         if cur.timestamp <= window_start {
@@ -591,7 +600,11 @@ fn compute_twap(env: &Env, asset: &Address, spot_price: i128) -> Result<i128, Or
             let dt = cur_t - prev_t;
             let dt_i128: i128 = dt as i128;
             weighted_sum = weighted_sum
-                .checked_add(prev.price.checked_mul(dt_i128).ok_or(OracleError::Overflow)?)
+                .checked_add(
+                    prev.price
+                        .checked_mul(dt_i128)
+                        .ok_or(OracleError::Overflow)?,
+                )
                 .ok_or(OracleError::Overflow)?;
             total_time = total_time.saturating_add(dt);
         }
@@ -601,12 +614,20 @@ fn compute_twap(env: &Env, asset: &Address, spot_price: i128) -> Result<i128, Or
     }
 
     // Last segment to now, using the latest observed price (or spot if none).
-    let last_price = if prev.timestamp == 0 { spot_price } else { prev.price };
+    let last_price = if prev.timestamp == 0 {
+        spot_price
+    } else {
+        prev.price
+    };
     if now > prev_t {
         let dt = now - prev_t;
         let dt_i128: i128 = dt as i128;
         weighted_sum = weighted_sum
-            .checked_add(last_price.checked_mul(dt_i128).ok_or(OracleError::Overflow)?)
+            .checked_add(
+                last_price
+                    .checked_mul(dt_i128)
+                    .ok_or(OracleError::Overflow)?,
+            )
             .ok_or(OracleError::Overflow)?;
         total_time = total_time.saturating_add(dt);
     }
@@ -615,9 +636,9 @@ fn compute_twap(env: &Env, asset: &Address, spot_price: i128) -> Result<i128, Or
         return Ok(spot_price);
     }
 
-    Ok(weighted_sum
+    weighted_sum
         .checked_div(total_time as i128)
-        .ok_or(OracleError::Overflow)?)
+        .ok_or(OracleError::Overflow)
 }
 
 /// Get cached price if valid

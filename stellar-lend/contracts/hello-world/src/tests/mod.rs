@@ -27,6 +27,7 @@ pub mod views_test;
 pub mod bridge_test;
 pub mod recovery_test;
 pub mod multisig_test;
+pub mod mev_protection_test;
 pub mod multisig_governance_execution_test;
 pub mod cross_contract_test;
 pub mod timelock_test;

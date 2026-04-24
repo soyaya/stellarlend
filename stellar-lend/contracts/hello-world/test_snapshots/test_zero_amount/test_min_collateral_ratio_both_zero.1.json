@@ -296,7 +296,23 @@
                           },
                           {
                             "key": {
+                              "symbol": "pause_bridge_acceptance"
+                            },
+                            "val": {
+                              "bool": false
+                            }
+                          },
+                          {
+                            "key": {
                               "symbol": "pause_deposit"
+                            },
+                            "val": {
+                              "bool": false
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "pause_flash_loan"
                             },
                             "val": {
                               "bool": false

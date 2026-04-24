@@ -186,7 +186,10 @@ export class ContractUpdater {
     const simulated = await this.server.simulateTransaction(transaction);
 
     if (rpc.Api.isSimulationError(simulated)) {
-      throw new Error(`Simulation failed: ${simulated.error}`);
+      const message = String(simulated.error ?? 'Unknown simulation error');
+      throw new Error(
+        message.startsWith('Simulation failed:') ? message : `Simulation failed: ${message}`
+      );
     }
 
     if (!rpc.Api.isSimulationSuccess(simulated)) {

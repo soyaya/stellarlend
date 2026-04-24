@@ -7,6 +7,7 @@ use crate::deposit::DepositError;
 use crate::flash_loan::FlashLoanError;
 use crate::interest_rate::InterestRateError;
 use crate::liquidate::LiquidationError;
+use crate::mev_protection::MevProtectionError;
 use crate::rate_limiter::RateLimitError;
 use crate::repay::RepayError;
 use crate::risk_management::RiskManagementError;
@@ -119,6 +120,16 @@ pub enum LendingError {
     GovernanceRequired = 27,
     /// Generic governance failure surfaced through the public interface.
     GovernanceError = 28,
+    /// Commit/reveal confirmation is required before the sensitive action can execute.
+    CommitRequired = 29,
+    /// Requested commit record does not exist.
+    CommitNotFound = 30,
+    /// Commit exists but cannot be revealed yet.
+    CommitNotReady = 31,
+    /// Commit expired before reveal.
+    CommitExpired = 32,
+    /// Protected execution would exceed the user's declared fee cap.
+    FeeCapExceeded = 33,
 }
 
 macro_rules! impl_from_error {
@@ -224,6 +235,17 @@ impl_from_error!(RateLimitError, {
     RateLimitError::InvalidConfig => LendingError::InvalidParameter,
     RateLimitError::Unauthorized => LendingError::Unauthorized,
     RateLimitError::Overflow => LendingError::Overflow,
+});
+
+impl_from_error!(MevProtectionError, {
+    MevProtectionError::InvalidConfig => LendingError::InvalidParameter,
+    MevProtectionError::CommitNotFound => LendingError::CommitNotFound,
+    MevProtectionError::CommitNotReady => LendingError::CommitNotReady,
+    MevProtectionError::CommitExpired => LendingError::CommitExpired,
+    MevProtectionError::Unauthorized => LendingError::Unauthorized,
+    MevProtectionError::FeeCapExceeded => LendingError::FeeCapExceeded,
+    MevProtectionError::InvalidAmount => LendingError::InvalidAmount,
+    MevProtectionError::InvalidOperation => LendingError::InvalidState,
 });
 
 impl_from_error!(RepayError, {

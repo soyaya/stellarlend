@@ -67,8 +67,8 @@ pub fn require_intent_auth(
     let mut auth_args = Vec::new(env);
     auth_args.push_back(env.current_contract_address().into_val(env));
     auth_args.push_back(op.clone().into_val(env));
-    auth_args.push_back((nonce as u64).into_val(env));
-    auth_args.push_back((expires_at as u64).into_val(env));
+    auth_args.push_back(nonce.into_val(env));
+    auth_args.push_back(expires_at.into_val(env));
     for v in args.iter() {
         auth_args.push_back(v);
     }
@@ -84,4 +84,3 @@ pub fn require_intent_auth(
 pub fn get_next_nonce(env: &Env, user: Address, op: Symbol) -> u64 {
     next_nonce(env, &user, &op)
 }
-

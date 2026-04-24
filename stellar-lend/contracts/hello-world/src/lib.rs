@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(deprecated)]
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Env, IntoVal, String, Vec};
 
 pub mod admin;
 pub mod analytics;
@@ -14,14 +14,15 @@ pub mod errors;
 pub mod events;
 pub mod flash_loan;
 pub mod governance;
-pub mod interest_rate;
 pub mod intents;
+pub mod interest_rate;
 pub mod liquidate;
+pub mod mev_protection;
 pub mod multi_collateral;
 pub mod multisig;
 pub mod oracle;
-pub mod recovery;
 pub mod rate_limiter;
+pub mod recovery;
 pub mod reentrancy;
 pub mod repay;
 pub mod reserve;
@@ -246,6 +247,160 @@ impl HelloContract {
         .map_err(Into::into)
     }
 
+    pub fn configure_mev_protection(
+        env: Env,
+        caller: Address,
+        config: mev_protection::MevProtectionConfig,
+    ) -> Result<(), LendingError> {
+        mev_protection::configure(&env, caller, config).map_err(Into::into)
+    }
+
+    pub fn get_mev_protection_config(env: Env) -> mev_protection::MevProtectionConfig {
+        mev_protection::get_config(&env)
+    }
+
+    pub fn commit_borrow_protected(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+        max_fee_bps: i128,
+        hint: mev_protection::TxOrderingHint,
+    ) -> Result<u64, LendingError> {
+        mev_protection::create_commit(
+            &env,
+            user,
+            mev_protection::SensitiveOperation::Borrow,
+            asset,
+            None,
+            None,
+            amount,
+            max_fee_bps,
+            hint,
+        )
+        .map_err(Into::into)
+    }
+
+    pub fn reveal_borrow_protected(
+        env: Env,
+        user: Address,
+        commit_id: u64,
+    ) -> Result<i128, LendingError> {
+        let (asset, amount, _) = mev_protection::reveal_borrow(&env, user.clone(), commit_id)
+            .map_err(LendingError::from)?;
+        borrow::borrow_asset(&env, user, asset, amount).map_err(Into::into)
+    }
+
+    pub fn commit_withdraw_protected(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+        max_fee_bps: i128,
+        hint: mev_protection::TxOrderingHint,
+    ) -> Result<u64, LendingError> {
+        mev_protection::create_commit(
+            &env,
+            user,
+            mev_protection::SensitiveOperation::Withdraw,
+            asset,
+            None,
+            None,
+            amount,
+            max_fee_bps,
+            hint,
+        )
+        .map_err(Into::into)
+    }
+
+    pub fn reveal_withdraw_protected(
+        env: Env,
+        user: Address,
+        commit_id: u64,
+    ) -> Result<i128, LendingError> {
+        let (asset, amount) = mev_protection::reveal_withdraw(&env, user.clone(), commit_id)
+            .map_err(LendingError::from)?;
+        withdraw::withdraw_collateral(&env, user, asset, amount).map_err(Into::into)
+    }
+
+    pub fn commit_liquidation_protected(
+        env: Env,
+        liquidator: Address,
+        borrower: Address,
+        debt_asset: Option<Address>,
+        collateral_asset: Option<Address>,
+        debt_amount: i128,
+        max_fee_bps: i128,
+        hint: mev_protection::TxOrderingHint,
+    ) -> Result<u64, LendingError> {
+        mev_protection::create_commit(
+            &env,
+            liquidator,
+            mev_protection::SensitiveOperation::Liquidate,
+            debt_asset,
+            collateral_asset,
+            Some(borrower),
+            debt_amount,
+            max_fee_bps,
+            hint,
+        )
+        .map_err(Into::into)
+    }
+
+    pub fn reveal_liquidation_protected(
+        env: Env,
+        liquidator: Address,
+        commit_id: u64,
+    ) -> Result<(i128, i128, i128), LendingError> {
+        let (borrower, debt_asset, collateral_asset, debt_amount) =
+            mev_protection::reveal_liquidation(&env, liquidator.clone(), commit_id)
+                .map_err(LendingError::from)?;
+        liquidate::liquidate(
+            &env,
+            liquidator,
+            borrower,
+            debt_asset,
+            collateral_asset,
+            debt_amount,
+        )
+        .map_err(Into::into)
+    }
+
+    pub fn cancel_mev_commit(env: Env, user: Address, commit_id: u64) -> Result<(), LendingError> {
+        mev_protection::cancel_commit(&env, user, commit_id).map_err(Into::into)
+    }
+
+    pub fn get_mev_commit(env: Env, commit_id: u64) -> Option<mev_protection::PendingCommit> {
+        mev_protection::get_commit(&env, commit_id)
+    }
+
+    pub fn preview_mev_fee_bps(
+        env: Env,
+        operation: mev_protection::SensitiveOperation,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> i128 {
+        mev_protection::preview_fee_bps(&env, operation, asset, amount)
+    }
+
+    pub fn get_mev_ordering_hint(
+        env: Env,
+        requested: mev_protection::TxOrderingHint,
+    ) -> mev_protection::TxOrderingHint {
+        mev_protection::execution_hint(&env, requested)
+    }
+
+    pub fn get_mev_user_guidance(
+        env: Env,
+        operation: mev_protection::SensitiveOperation,
+    ) -> String {
+        mev_protection::user_guidance(&env, operation)
+    }
+
+    pub fn get_mev_ordering_stats(env: Env) -> mev_protection::OrderingStats {
+        mev_protection::get_ordering_stats(&env)
+    }
+
     /// Meta-tx style liquidation: liquidator authorizes intent off-chain.
     pub fn liquidate_intent(
         env: Env,
@@ -307,8 +462,7 @@ impl HelloContract {
     ) -> Result<(), LendingError> {
         // Authorization is handled by risk_management::require_admin.
         risk_management::require_admin(&env, &caller)?;
-        risk_management::set_emergency_pause(&env, caller, paused)
-            .map_err(Into::into)
+        risk_management::set_emergency_pause(&env, caller, paused).map_err(Into::into)
     }
 
     pub fn execute_flash_loan(
@@ -338,10 +492,7 @@ impl HelloContract {
         risk_params::can_be_liquidated(&env, collateral_value, debt_value).map_err(Into::into)
     }
 
-    pub fn get_max_liquidatable_amount(
-        env: Env,
-        debt_value: i128,
-    ) -> Result<i128, LendingError> {
+    pub fn get_max_liquidatable_amount(env: Env, debt_value: i128) -> Result<i128, LendingError> {
         risk_params::get_max_liquidatable_amount(&env, debt_value).map_err(Into::into)
     }
 
@@ -366,11 +517,7 @@ impl HelloContract {
     // -------------------------------------------------------------------------
 
     /// Set the protocol treasury address (admin-only)
-    pub fn set_treasury(
-        env: Env,
-        caller: Address,
-        treasury: Address,
-    ) -> Result<(), LendingError> {
+    pub fn set_treasury(env: Env, caller: Address, treasury: Address) -> Result<(), LendingError> {
         treasury::set_treasury(&env, caller, treasury).map_err(Into::into)
     }
 
@@ -464,10 +611,7 @@ impl HelloContract {
     }
 
     /// Read-only user analytics report.
-    pub fn get_user_report(
-        env: Env,
-        user: Address,
-    ) -> Result<analytics::UserReport, LendingError> {
+    pub fn get_user_report(env: Env, user: Address) -> Result<analytics::UserReport, LendingError> {
         analytics::generate_user_report(&env, &user).map_err(Into::into)
     }
 
@@ -524,12 +668,11 @@ impl HelloContract {
         operation: soroban_sdk::Symbol,
         cfg: rate_limiter::RateLimitConfig,
     ) -> Result<(), LendingError> {
-        rate_limiter::configure_operation_limit(&env, caller, operation, cfg)
-            .map_err(|e| match e {
-                rate_limiter::RateLimitError::Unauthorized => LendingError::Unauthorized,
-                rate_limiter::RateLimitError::InvalidConfig => LendingError::InvalidParameter,
-                _ => LendingError::InvalidParameter,
-            })
+        rate_limiter::configure_operation_limit(&env, caller, operation, cfg).map_err(|e| match e {
+            rate_limiter::RateLimitError::Unauthorized => LendingError::Unauthorized,
+            rate_limiter::RateLimitError::InvalidConfig => LendingError::InvalidParameter,
+            _ => LendingError::InvalidParameter,
+        })
     }
 
     /// Admin-only: configure global-per-pool rate limits for an operation.
@@ -540,11 +683,13 @@ impl HelloContract {
         pool: Address,
         cfg: rate_limiter::RateLimitConfig,
     ) -> Result<(), LendingError> {
-        rate_limiter::configure_pool_limit(&env, caller, operation, pool, cfg).map_err(|e| match e {
-            rate_limiter::RateLimitError::Unauthorized => LendingError::Unauthorized,
-            rate_limiter::RateLimitError::InvalidConfig => LendingError::InvalidParameter,
-            _ => LendingError::InvalidParameter,
-        })
+        rate_limiter::configure_pool_limit(&env, caller, operation, pool, cfg).map_err(
+            |e| match e {
+                rate_limiter::RateLimitError::Unauthorized => LendingError::Unauthorized,
+                rate_limiter::RateLimitError::InvalidConfig => LendingError::InvalidParameter,
+                _ => LendingError::InvalidParameter,
+            },
+        )
     }
 
     /// Admin-only: grant/revoke extra burst capacity for a (user, operation) pair.
@@ -586,6 +731,9 @@ impl HelloContract {
 mod cross_contract_test;
 #[cfg(test)]
 mod flash_loan_test;
+#[cfg(test)]
+#[path = "tests/mev_protection_test.rs"]
+mod mev_protection_test;
 #[cfg(test)]
 mod multi_collateral_test;
 #[cfg(test)]

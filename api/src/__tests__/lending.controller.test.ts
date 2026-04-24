@@ -189,17 +189,20 @@ describe('Lending Controller', () => {
       expect(response.body.success).toBe(true);
       
       // Verify audit log was called with correct structure
-      expect(mockLogger.info).toHaveBeenCalledWith('AUDIT', expect.objectContaining({
-        action: 'DEPOSIT',
-        userAddress: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
-        amount: '1000000',
-        assetAddress: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH2U',
-        txHash: 'mock_tx_hash',
-        timestamp: expect.any(String),
-        ip: expect.any(String),
-        status: 'success',
-        ledger: 12345
-      }));
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'AUDIT',
+        expect.objectContaining({
+          action: 'DEPOSIT',
+          actor: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
+          txHash: 'mock_tx_hash',
+          timestamp: expect.any(String),
+          status: 'success',
+          ledger: 12345,
+          id: expect.any(String),
+          sequence: expect.any(Number),
+          hash: expect.any(String),
+        })
+      );
     });
 
     it('should log audit entry with redacted data when audit fields are missing', async () => {
@@ -211,17 +214,20 @@ describe('Lending Controller', () => {
       expect(response.body.success).toBe(true);
       
       // Verify audit log was called with redacted values
-      expect(mockLogger.info).toHaveBeenCalledWith('AUDIT', expect.objectContaining({
-        action: 'TRANSACTION_EXECUTED',
-        userAddress: 'REDACTED',
-        amount: 'REDACTED',
-        assetAddress: 'REDACTED',
-        txHash: 'mock_tx_hash',
-        timestamp: expect.any(String),
-        ip: expect.any(String),
-        status: 'success',
-        ledger: 12345
-      }));
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'AUDIT',
+        expect.objectContaining({
+          action: 'TRANSACTION_EXECUTED',
+          actor: 'REDACTED',
+          txHash: 'mock_tx_hash',
+          timestamp: expect.any(String),
+          status: 'success',
+          ledger: 12345,
+          id: expect.any(String),
+          sequence: expect.any(Number),
+          hash: expect.any(String),
+        })
+      );
     });
 
     it('should validate optional audit fields when provided', async () => {

@@ -10,10 +10,7 @@ pub struct CustomizableMockOracle;
 #[contractimpl]
 impl CustomizableMockOracle {
     pub fn price(env: Env, asset: Address) -> i128 {
-        env.storage()
-            .instance()
-            .get(&asset)
-            .unwrap_or(100_000_000) // Default $1.00
+        env.storage().instance().get(&asset).unwrap_or(100_000_000) // Default $1.00
     }
 
     pub fn set_price(env: Env, asset: Address, price: i128) {
@@ -59,8 +56,8 @@ fn test_stability_fee_applied_when_depegged() {
     // Configure stablecoin: $1.00 peg, 1% threshold, 2% stability fee
     let config = StablecoinConfig {
         target_price: 100_000_000,
-        peg_threshold_bps: 100, // 1%
-        stability_fee_bps: 200,  // 2%
+        peg_threshold_bps: 100,        // 1%
+        stability_fee_bps: 200,        // 2%
         emergency_threshold_bps: 1000, // 10%
     };
     client.set_stablecoin_config(&admin, &asset, &config);
@@ -76,7 +73,11 @@ fn test_stability_fee_applied_when_depegged() {
     let debt = client.get_user_debt(&user);
     // Base rate is 500 bps (5%), stability fee is 200 bps (2%)
     // Total interest = 7% of 100,000 = 7,000
-    assert!(debt.interest_accrued >= 6900 && debt.interest_accrued <= 7100, "Interest accrued: {}", debt.interest_accrued);
+    assert!(
+        debt.interest_accrued >= 6900 && debt.interest_accrued <= 7100,
+        "Interest accrued: {}",
+        debt.interest_accrued
+    );
 }
 
 #[test]
@@ -105,7 +106,11 @@ fn test_no_stability_fee_when_within_threshold() {
 
     let debt = client.get_user_debt(&user);
     // Only base rate 5% applied = 5,000
-    assert!(debt.interest_accrued >= 4900 && debt.interest_accrued <= 5100, "Interest accrued: {}", debt.interest_accrued);
+    assert!(
+        debt.interest_accrued >= 4900 && debt.interest_accrued <= 5100,
+        "Interest accrued: {}",
+        debt.interest_accrued
+    );
 }
 
 #[test]

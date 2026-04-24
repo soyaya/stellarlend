@@ -45,6 +45,7 @@ vi.mock('../src/providers/index.js', () => ({
 vi.mock('../src/services/index.js', () => ({
   createValidator: vi.fn(() => ({ validate: vi.fn() })),
   createPriceCache: vi.fn(() => ({ get: vi.fn(), set: vi.fn() })),
+  createPriceHistoryService: vi.fn(() => ({ addAggregatedPrice: vi.fn(), getStats: vi.fn(() => ({})) })),
   createAggregator: vi.fn(() => mockAggregator),
   createContractUpdater: vi.fn(() => mockContractUpdater),
 }));

@@ -16,20 +16,17 @@ pub use borrow::{BorrowCollateral, BorrowError, DebtPosition, StablecoinConfig};
 pub use deposit::{DepositCollateral, DepositError};
 pub use flash_loan::FlashLoanError;
 pub use pause::PauseType;
-pub use views::{
-    ProtocolMetrics, ProtocolReport, StablecoinAssetStats, UserPositionSummary,
-};
+pub use views::{ProtocolMetrics, ProtocolReport, StablecoinAssetStats, UserPositionSummary};
 pub use withdraw::WithdrawError;
 
 use borrow::{
     borrow as borrow_cmd, deposit as borrow_deposit, get_admin as get_borrow_admin,
+    get_stablecoin_config as get_stablecoin_config_logic,
     get_user_collateral as get_borrow_collateral, get_user_debt as get_borrow_debt,
     initialize_borrow_settings as initialize_borrow_logic, repay as borrow_repay,
     set_admin as set_borrow_admin,
     set_liquidation_threshold_bps as set_liquidation_threshold_logic,
-    set_oracle as set_oracle_logic,
-    set_stablecoin_config as set_stablecoin_config_logic,
-    get_stablecoin_config as get_stablecoin_config_logic,
+    set_oracle as set_oracle_logic, set_stablecoin_config as set_stablecoin_config_logic,
 };
 use deposit::{
     deposit as deposit_logic, get_user_collateral as get_deposit_collateral,
@@ -53,6 +50,7 @@ use withdraw::{
     initialize_withdraw_settings as initialize_withdraw_logic,
     set_withdraw_paused as set_withdraw_paused_logic, withdraw as withdraw_logic,
 };
+#[allow(dead_code)]
 mod data_store;
 pub mod upgrade;
 
@@ -69,6 +67,8 @@ mod math_safety_test;
 #[cfg(test)]
 mod pause_test;
 #[cfg(test)]
+mod stablecoin_test;
+#[cfg(test)]
 mod token_receiver_test;
 #[cfg(test)]
 mod upgrade_test;
@@ -76,8 +76,6 @@ mod upgrade_test;
 mod views_test;
 #[cfg(test)]
 mod withdraw_test;
-#[cfg(test)]
-mod stablecoin_test;
 
 #[contract]
 pub struct LendingContract;
@@ -356,10 +354,7 @@ impl LendingContract {
     }
 
     /// Get protocol report including stablecoin stats
-    pub fn get_protocol_report(
-        env: Env,
-        stablecoin_assets: Vec<Address>,
-    ) -> ProtocolReport {
+    pub fn get_protocol_report(env: Env, stablecoin_assets: Vec<Address>) -> ProtocolReport {
         views::get_protocol_report(&env, stablecoin_assets)
     }
 }

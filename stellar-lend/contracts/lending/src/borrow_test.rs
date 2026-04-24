@@ -154,6 +154,7 @@ fn test_borrow_interest_accrual() {
 fn test_interest_overflow_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
+    let contract_id = env.register(LendingContract, ());
 
     // Construct a position that will produce an interest larger than i128 when scaled
     let mut position = DebtPosition {
@@ -169,19 +170,19 @@ fn test_interest_overflow_returns_error() {
     });
 
     // Borrowed amount is i128::MAX, 100y at 5% should overflow i128
-    let result = calculate_interest(&env, &position);
+    let result = env.as_contract(&contract_id, || calculate_interest(&env, &position));
     assert!(matches!(result, Err(BorrowError::Overflow)));
 
     // Ensure callers can propagate the error; simulate accrue step
     position.last_update = 0;
-    let accrue_result = (|| -> Result<(), BorrowError> {
+    let accrue_result = env.as_contract(&contract_id, || -> Result<(), BorrowError> {
         let new_interest = calculate_interest(&env, &position)?;
         position.interest_accrued = position
             .interest_accrued
             .checked_add(new_interest)
             .ok_or(BorrowError::Overflow)?;
         Ok(())
-    })();
+    });
     assert!(matches!(accrue_result, Err(BorrowError::Overflow)));
 }
 #[test]

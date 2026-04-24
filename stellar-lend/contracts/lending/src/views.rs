@@ -9,7 +9,7 @@
 //! - Collateral and debt values depend on the oracle; ensure the oracle is correct and trusted.
 //! - Health factor uses the admin-set liquidation threshold consistently.
 
-use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, I256, Vec};
+use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec, I256};
 
 use crate::borrow::{
     get_close_factor_bps, get_liquidation_incentive_bps, get_liquidation_threshold_bps, get_oracle,
@@ -349,9 +349,9 @@ pub fn get_protocol_report(env: &Env, stablecoin_assets: Vec<Address>) -> Protoc
     };
 
     let mut stablecoin_stats = Vec::new(env);
-    if let Some(oracle) = borrow::get_oracle(env) {
+    if let Some(oracle) = get_oracle(env) {
         for asset in stablecoin_assets.iter() {
-            if let Some(config) = borrow::get_stablecoin_config(env, &asset) {
+            if let Some(config) = crate::borrow::get_stablecoin_config(env, &asset) {
                 let price = env.invoke_contract::<i128>(
                     &oracle,
                     &soroban_sdk::Symbol::new(env, "price"),
@@ -359,7 +359,9 @@ pub fn get_protocol_report(env: &Env, stablecoin_assets: Vec<Address>) -> Protoc
                 );
                 let deviation = config.target_price.saturating_sub(price);
                 let deviation_bps = if config.target_price > 0 {
-                    deviation.saturating_mul(10000).saturating_div(config.target_price)
+                    deviation
+                        .saturating_mul(10000)
+                        .saturating_div(config.target_price)
                 } else {
                     0
                 };

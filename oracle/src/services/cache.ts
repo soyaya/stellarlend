@@ -69,7 +69,6 @@ export class Cache {
   private initializeRedis(): void {
     try {
       this.redis = new Redis(this.config.redisUrl!, {
-        retryDelayOnFailover: 100,
         maxRetriesPerRequest: 3,
         lazyConnect: true,
       });

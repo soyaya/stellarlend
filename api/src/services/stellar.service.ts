@@ -10,6 +10,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { Server as SorobanServer } from '@stellar/stellar-sdk/rpc';
 import axios from 'axios';
+import type { AxiosResponse } from 'axios';
 import { config } from '../config';
 import logger from '../utils/logger';
 import { InternalServerError } from '../utils/errors';
@@ -593,7 +594,7 @@ export class StellarService {
     while (nextUrl) {
       if (signal?.aborted) return;
 
-      const response = await axios.get(nextUrl);
+      const response: AxiosResponse<any> = await axios.get(nextUrl);
       const transactions: any[] = response.data._embedded?.records ?? [];
 
       const lendingTxs = await this.filterLendingTransactions(transactions);

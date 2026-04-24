@@ -14,7 +14,7 @@ export const getPortfolioAnalytics = async (
 ): Promise<void> => {
   try {
     const { userAddress } = req.params;
-    const cacheKey = redisCacheService.buildKey('portfolio', userAddress);
+    const cacheKey = redisCacheService.buildKey('position', `portfolio:${userAddress}`);
 
     const cached = await redisCacheService.get<PortfolioAnalyticsResponse>(cacheKey);
     if (cached) {

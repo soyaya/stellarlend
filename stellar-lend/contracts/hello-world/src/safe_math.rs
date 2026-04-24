@@ -26,4 +26,3 @@ pub fn checked_div(a: i128, b: i128) -> Option<i128> {
         a.checked_div(b)
     }
 }
-

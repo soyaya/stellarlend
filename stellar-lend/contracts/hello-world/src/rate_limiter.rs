@@ -134,7 +134,11 @@ fn capacity_tokens(cfg: &RateLimitConfig, grace: bool) -> i128 {
     let base = (cfg.max_calls_per_window as i128)
         .checked_add(cfg.burst_calls as i128)
         .unwrap_or(i128::MAX);
-    let extra = if grace { cfg.grace_burst_calls as i128 } else { 0 };
+    let extra = if grace {
+        cfg.grace_burst_calls as i128
+    } else {
+        0
+    };
     base.checked_add(extra)
         .and_then(|v| v.checked_mul(TOKEN_SCALE))
         .unwrap_or(i128::MAX)
@@ -147,9 +151,9 @@ fn refill_per_second(cfg: &RateLimitConfig) -> Result<i128, RateLimitError> {
     let per_window_tokens = (cfg.max_calls_per_window as i128)
         .checked_mul(TOKEN_SCALE)
         .ok_or(RateLimitError::Overflow)?;
-    Ok(per_window_tokens
+    per_window_tokens
         .checked_div(cfg.window_seconds as i128)
-        .ok_or(RateLimitError::Overflow)?)
+        .ok_or(RateLimitError::Overflow)
 }
 
 fn refill_bucket(
@@ -176,11 +180,7 @@ fn refill_bucket(
     Ok(bucket)
 }
 
-fn get_or_init_bucket(
-    env: &Env,
-    key: &RateLimitDataKey,
-    cap_tokens: i128,
-) -> BucketState {
+fn get_or_init_bucket(env: &Env, key: &RateLimitDataKey, cap_tokens: i128) -> BucketState {
     env.storage()
         .persistent()
         .get::<RateLimitDataKey, BucketState>(key)
@@ -335,4 +335,3 @@ pub fn get_global_status(env: &Env, op: Symbol, pool: Address) -> RateLimitStatu
         grace_enabled: false,
     }
 }
-

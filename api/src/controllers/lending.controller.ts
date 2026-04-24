@@ -13,6 +13,7 @@ import logger from '../utils/logger';
 import { emergencyPauseService } from '../services/emergencyPause.service';
 import { redisCacheService } from '../services/redisCache.service';
 import { auditLogService } from '../services/auditLog.service';
+import { parsePaginationParams } from '../utils/pagination';
 import {
   assignRole,
   getCurrentRoleAssignments,
@@ -269,10 +270,11 @@ export const getTransactionHistory = async (
 ) => {
   try {
     const stellarService = new StellarService();
+    const pagination = parsePaginationParams(req.query as Record<string, unknown>);
     const query: TransactionHistoryQuery = {
       userAddress: req.params.userAddress,
-      limit: req.query.limit ? Number(req.query.limit) : undefined,
-      cursor: typeof req.query.cursor === 'string' ? req.query.cursor : undefined,
+      limit: pagination.limit,
+      cursor: pagination.cursor ?? undefined,
     };
 
     const history: TransactionHistoryResponse = await stellarService.getTransactionHistory(query);
