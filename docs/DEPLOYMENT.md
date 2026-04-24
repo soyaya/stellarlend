@@ -128,6 +128,12 @@ stellar contract deploy --wasm previous_version.optimized.wasm \
   --source "$ADMIN_SECRET_KEY" --network <network>
 ```
 
+- Or derive the rollback plan from the previously saved deployment manifest:
+```bash
+./scripts/rollback.sh --network testnet
+./scripts/rollback.sh --network testnet --execute
+```
+
 ## API & Landing Page
 - Rollback via Vercel:
 ```bash
@@ -149,6 +155,14 @@ pm2 start dist/index.js --name stellarlend-oracle
 2. API endpoint health: `curl https://api.stellarlend.com/health`
 3. Landing page loads over HTTPS
 4. Oracle updates verified via logs or transaction history
+
+Automate the contract verification stage with:
+
+```bash
+./scripts/verify-deployment.sh --network testnet
+```
+
+The verifier reads the deployment manifest created during `scripts/deploy.sh`, confirms the expected lending defaults, ensures the emergency pause is clear, and checks the local WASM hash against the manifest for deterministic deployment verification.
 
 # Testnet Walkthrough
 ```bash

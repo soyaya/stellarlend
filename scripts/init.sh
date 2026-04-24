@@ -64,6 +64,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ---------------------------------------------------------------------------
 NETWORK="${STELLAR_NETWORK:-testnet}"
 INIT_AMM=false
+SKIP_VERIFY=false
 AMM_DEFAULT_SLIPPAGE=100     # 1 %
 AMM_MAX_SLIPPAGE=1000        # 10 %
 AMM_AUTO_SWAP_THRESHOLD=1000000
@@ -75,6 +76,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --network)                   NETWORK="$2"; shift 2 ;;
     --init-amm)                  INIT_AMM=true; shift ;;
+    --skip-verify)               SKIP_VERIFY=true; shift ;;
     --amm-default-slippage)      AMM_DEFAULT_SLIPPAGE="$2"; shift 2 ;;
     --amm-max-slippage)          AMM_MAX_SLIPPAGE="$2"; shift 2 ;;
     --amm-auto-swap-threshold)   AMM_AUTO_SWAP_THRESHOLD="$2"; shift 2 ;;
@@ -208,6 +210,18 @@ EMERGENCY_PAUSED="$(stellar contract invoke \
 echo "    min_collateral_ratio  : $MIN_RATIO bps  (expected 11000 = 110%)"
 echo "    liquidation_threshold : $LIQ_THRESHOLD bps  (expected 10500 = 105%)"
 echo "    is_emergency_paused   : $EMERGENCY_PAUSED  (expected false)"
+
+if ! $SKIP_VERIFY; then
+  echo ""
+  echo ">>> Running deployment verification ..."
+
+  VERIFY_ARGS=(--network "$NETWORK")
+  if ! $INIT_AMM; then
+    VERIFY_ARGS+=(--skip-amm)
+  fi
+
+  "$SCRIPT_DIR/verify-deployment.sh" "${VERIFY_ARGS[@]}"
+fi
 
 # ---------------------------------------------------------------------------
 # Summary

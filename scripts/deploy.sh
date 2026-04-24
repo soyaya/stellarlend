@@ -43,6 +43,10 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 STELLAR_LEND_DIR="$REPO_ROOT/stellar-lend"
 WASM_DIR="$STELLAR_LEND_DIR/target/wasm32-unknown-unknown/release"
 
+sha256_file() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
@@ -145,6 +149,9 @@ fi
 DEPLOY_DIR="$SCRIPT_DIR/deployed/$NETWORK"
 mkdir -p "$DEPLOY_DIR"
 
+MANIFEST_FILE="$DEPLOY_DIR/deployment-manifest.json"
+PREVIOUS_MANIFEST_FILE="$DEPLOY_DIR/deployment-manifest.previous.json"
+
 # ---------------------------------------------------------------------------
 # Helper: deploy a single contract and save its ID
 # ---------------------------------------------------------------------------
@@ -189,6 +196,33 @@ if $DEPLOY_AMM; then
   AMM_CONTRACT_ID="$(deploy_contract "StellarLend AMM Contract" "$AMM_WASM" "$AMM_ID_FILE")"
 fi
 
+if [[ -f "$MANIFEST_FILE" ]]; then
+  cp "$MANIFEST_FILE" "$PREVIOUS_MANIFEST_FILE"
+fi
+
+LENDING_WASM_SHA256="$(sha256_file "$LENDING_WASM")"
+
+cat > "$MANIFEST_FILE" <<EOF
+{
+  "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "network": "$NETWORK",
+  "rpc_url": "${STELLAR_RPC_URL:-}",
+  "lending": {
+    "contract_id": "$LENDING_CONTRACT_ID",
+    "wasm": "$LENDING_WASM",
+    "sha256": "$LENDING_WASM_SHA256"
+  }$(if $DEPLOY_AMM; then cat <<AMM
+,
+  "amm": {
+    "contract_id": "$AMM_CONTRACT_ID",
+    "wasm": "$AMM_WASM",
+    "sha256": "$(sha256_file "$AMM_WASM")"
+  }
+AMM
+fi)
+}
+EOF
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
@@ -200,6 +234,7 @@ echo " Lending contract ID  : $LENDING_CONTRACT_ID"
 if $DEPLOY_AMM; then
   echo " AMM contract ID      : $AMM_CONTRACT_ID"
 fi
+echo " Deployment manifest  : $MANIFEST_FILE"
 echo ""
 echo " NEXT STEP: Initialize the deployed contract(s)."
 echo " Run: ./scripts/init.sh --network $NETWORK"
