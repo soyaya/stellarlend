@@ -1,0 +1,9 @@
+[advisories]
+# Keep vulnerability advisories fatal, but do not fail CI on unmaintained
+# transitive dependencies with no safe upgrade path from Soroban/Ark.
+unmaintained = "workspace"
+unsound = "workspace"
+yanked = "warn"
+
+[bans]
+multiple-versions = "warn"

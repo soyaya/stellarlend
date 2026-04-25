@@ -153,6 +153,9 @@ impl AmmHarness {
                     amount_b: i128::from(action.i64_b()),
                     min_amount_a: 0,
                     min_amount_b: 0,
+                    tick_lower: None,
+                    tick_upper: None,
+                    fee_tier: None,
                     deadline,
                 };
                 let _ = contract.try_add_liquidity(&user, &params);

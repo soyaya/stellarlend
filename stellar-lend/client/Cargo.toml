@@ -8,7 +8,7 @@ license = "MIT"
 
 [dependencies]
 # HTTP client for API calls
-reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.13", features = ["json", "form", "rustls", "webpki-roots"], default-features = false }
 tokio = { version = "1.35", features = ["full"] }
 
 # Serialization
@@ -22,9 +22,6 @@ anyhow = "1.0"
 # Async utilities
 async-trait = "0.1"
 futures = "0.3"
-
-# Retry logic
-backoff = { version = "0.4", features = ["tokio"] }
 
 # Logging
 tracing = "0.1"

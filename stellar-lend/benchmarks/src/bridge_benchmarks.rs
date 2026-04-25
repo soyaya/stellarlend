@@ -11,8 +11,7 @@
 //! - Warm: subsequent operations on existing bridge
 
 use crate::framework::{
-    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite,
-    RunConfig,
+    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite, RunConfig,
 };
 use bridge::{BridgeContract, BridgeContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
@@ -24,27 +23,25 @@ pub fn register(suite: &mut BenchmarkSuite) {
 }
 
 fn run_all(config: &RunConfig) -> Vec<BenchmarkResult> {
-    let mut results = Vec::new();
-
-    results.push(bench_init(config));
-    results.push(bench_register_bridge_cold(config));
-    results.push(bench_register_bridge_warm(config));
-    results.push(bench_set_bridge_fee(config));
-    results.push(bench_set_bridge_active(config));
-    results.push(bench_bridge_deposit_cold(config));
-    results.push(bench_bridge_deposit_warm(config));
-    results.push(bench_bridge_withdraw_cold(config));
-    results.push(bench_bridge_withdraw_warm(config));
-    results.push(bench_transfer_admin(config));
-    results.push(bench_get_bridge_config(config));
-    results.push(bench_list_bridges_empty(config));
-    results.push(bench_list_bridges_populated(config));
-    results.push(bench_get_admin(config));
-    results.push(bench_compute_fee_normal(config));
-    results.push(bench_compute_fee_zero_rate(config));
-    results.push(bench_bridge_deposit_multiple_bridges_storage(config));
-
-    results
+    vec![
+        bench_init(config),
+        bench_register_bridge_cold(config),
+        bench_register_bridge_warm(config),
+        bench_set_bridge_fee(config),
+        bench_set_bridge_active(config),
+        bench_bridge_deposit_cold(config),
+        bench_bridge_deposit_warm(config),
+        bench_bridge_withdraw_cold(config),
+        bench_bridge_withdraw_warm(config),
+        bench_transfer_admin(config),
+        bench_get_bridge_config(config),
+        bench_list_bridges_empty(config),
+        bench_list_bridges_populated(config),
+        bench_get_admin(config),
+        bench_compute_fee_normal(config),
+        bench_compute_fee_zero_rate(config),
+        bench_bridge_deposit_multiple_bridges_storage(config),
+    ]
 }
 
 // ─── Setup helpers ────────────────────────────────────────────────────────────
@@ -63,9 +60,7 @@ fn setup(env: &Env) -> (BridgeContractClient<'static>, Address) {
 
 fn setup_with_bridge(env: &Env) -> (BridgeContractClient<'static>, Address) {
     let (client, admin) = setup(env);
-    client
-        .register_bridge(&admin, &s(env, "eth-mainnet"), &50u64, &1_000i128)
-        ;
+    client.register_bridge(&admin, &s(env, "eth-mainnet"), &50u64, &1_000i128);
     (client, admin)
 }
 
@@ -83,9 +78,14 @@ fn bench_init(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Initialize bridge contract — admin storage write",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "init".into()],
     )
@@ -99,15 +99,18 @@ fn bench_register_bridge_cold(config: &RunConfig) -> BenchmarkResult {
     let (client, admin) = setup(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        client
-            .register_bridge(&admin, &s(&env, "eth-mainnet"), &50u64, &1_000i128)
-            ;
+        client.register_bridge(&admin, &s(&env, "eth-mainnet"), &50u64, &1_000i128);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Register bridge — cold: bridge list init + config write",
-        insns, mem, 1, 2, true,
+        insns,
+        mem,
+        1,
+        2,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "register".into(), "cold".into()],
     )
@@ -124,9 +127,14 @@ fn bench_register_bridge_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Register bridge — warm: bridge list append (existing list)",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "bridge::register_bridge"),
         vec!["admin".into(), "register".into(), "warm".into()],
     )
@@ -140,15 +148,18 @@ fn bench_set_bridge_fee(config: &RunConfig) -> BenchmarkResult {
     let (client, admin) = setup_with_bridge(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        client
-            .set_bridge_fee(&admin, &s(&env, "eth-mainnet"), &100u64)
-            ;
+        client.set_bridge_fee(&admin, &s(&env, "eth-mainnet"), &100u64);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set bridge fee — admin auth + bridge config read + write",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, op),
         vec!["admin".into(), "fee".into()],
     )
@@ -162,15 +173,18 @@ fn bench_set_bridge_active(config: &RunConfig) -> BenchmarkResult {
     let (client, admin) = setup_with_bridge(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        client
-            .set_bridge_active(&admin, &s(&env, "eth-mainnet"), &false)
-            ;
+        client.set_bridge_active(&admin, &s(&env, "eth-mainnet"), &false);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set bridge active/inactive — admin auth + config update",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, op),
         vec!["admin".into(), "active".into()],
     )
@@ -185,15 +199,18 @@ fn bench_bridge_deposit_cold(config: &RunConfig) -> BenchmarkResult {
     let user = Address::generate(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        client
-            .bridge_deposit(&user, &s(&env, "eth-mainnet"), &100_000i128)
-            ;
+        client.bridge_deposit(&user, &s(&env, "eth-mainnet"), &100_000i128);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Bridge deposit — cold: bridge config read + fee calc + total_deposited write",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["deposit".into(), "cold".into()],
     )
@@ -210,9 +227,14 @@ fn bench_bridge_deposit_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Bridge deposit — warm: bridge config cached, total_deposited accumulation",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "bridge::bridge_deposit"),
         vec!["deposit".into(), "warm".into()],
     )
@@ -227,15 +249,18 @@ fn bench_bridge_withdraw_cold(config: &RunConfig) -> BenchmarkResult {
     let recipient = Address::generate(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        client
-            .bridge_withdraw(&admin, &s(&env, "eth-mainnet"), &recipient, &10_000i128)
-            ;
+        client.bridge_withdraw(&admin, &s(&env, "eth-mainnet"), &recipient, &10_000i128);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Bridge withdraw — cold: admin auth + bridge config read + total_withdrawn write",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["withdraw".into(), "cold".into()],
     )
@@ -248,13 +273,19 @@ fn bench_bridge_withdraw_warm(config: &RunConfig) -> BenchmarkResult {
     let recipient = Address::generate(&env);
     client.bridge_withdraw(&admin, &s(&env, "eth-mainnet"), &recipient, &10_000i128); // first withdraw — warms storage
     let (insns, mem) = measure_instructions(&env, || {
-        client.bridge_withdraw(&admin, &s(&env, "eth-mainnet"), &recipient, &5_000i128); // warm
+        client.bridge_withdraw(&admin, &s(&env, "eth-mainnet"), &recipient, &5_000i128);
+        // warm
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Bridge withdraw — warm: bridge config cached",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "bridge::bridge_withdraw"),
         vec!["withdraw".into(), "warm".into()],
     )
@@ -273,9 +304,14 @@ fn bench_transfer_admin(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Transfer admin — auth check + admin storage overwrite",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, op),
         vec!["admin".into()],
     )
@@ -293,9 +329,14 @@ fn bench_get_bridge_config(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get bridge config — single storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "config".into()],
     )
@@ -311,9 +352,14 @@ fn bench_list_bridges_empty(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "List bridges — empty list (cold read miss)",
-        insns, mem, 1, 0, true,
+        insns,
+        mem,
+        1,
+        0,
+        true,
         get_budget(config, "bridge::list_bridges"),
         vec!["query".into(), "list".into(), "empty".into()],
     )
@@ -324,24 +370,23 @@ fn bench_list_bridges_populated(config: &RunConfig) -> BenchmarkResult {
     let env = fresh_env();
     let (client, admin) = setup(&env);
     // Register 3 bridges
-    client
-        .register_bridge(&admin, &s(&env, "eth-mainnet"), &50u64, &1_000i128)
-        ;
-    client
-        .register_bridge(&admin, &s(&env, "polygon"), &30u64, &500i128)
-        ;
-    client
-        .register_bridge(&admin, &s(&env, "bsc"), &20u64, &200i128)
-        ;
+    client.register_bridge(&admin, &s(&env, "eth-mainnet"), &50u64, &1_000i128);
+    client.register_bridge(&admin, &s(&env, "polygon"), &30u64, &500i128);
+    client.register_bridge(&admin, &s(&env, "bsc"), &20u64, &200i128);
 
     let (insns, mem) = measure_instructions(&env, || {
         client.list_bridges();
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "List bridges — 3 bridges (warm read, Vec deserialization)",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, "bridge::list_bridges"),
         vec!["query".into(), "list".into(), "populated".into()],
     )
@@ -357,9 +402,14 @@ fn bench_get_admin(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get admin address — single storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "admin".into()],
     )
@@ -377,9 +427,14 @@ fn bench_compute_fee_normal(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Compute fee — pure arithmetic, no storage access",
-        insns, mem, 0, 0, false,
+        insns,
+        mem,
+        0,
+        0,
+        false,
         get_budget(config, op),
         vec!["compute".into(), "fee".into()],
     )
@@ -394,9 +449,14 @@ fn bench_compute_fee_zero_rate(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Compute fee — zero rate (edge case: no fee path)",
-        insns, mem, 0, 0, false,
+        insns,
+        mem,
+        0,
+        0,
+        false,
         get_budget(config, "bridge::compute_fee"),
         vec!["compute".into(), "fee".into(), "zero_rate".into()],
     )
@@ -412,24 +472,29 @@ fn bench_bridge_deposit_multiple_bridges_storage(config: &RunConfig) -> Benchmar
     // Register 5 bridges
     for i in 0..5u32 {
         let id = format!("bridge-{}", i);
-        client
-            .register_bridge(&admin, &String::from_str(&env, &id), &50u64, &1_000i128)
-            ;
+        client.register_bridge(&admin, &String::from_str(&env, &id), &50u64, &1_000i128);
     }
 
     // Measure deposit on the 5th bridge — bridge list is populated (warm-ish)
     let user = Address::generate(&env);
     let (insns, mem) = measure_instructions(&env, || {
-        client
-            .bridge_deposit(&user, &s(&env, "bridge-4"), &10_000i128)
-            ;
+        client.bridge_deposit(&user, &s(&env, "bridge-4"), &10_000i128);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Bridge deposit with 5 registered bridges — storage write pattern",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "bridge::bridge_deposit"),
-        vec!["deposit".into(), "storage_pattern".into(), "multi_bridge".into()],
+        vec![
+            "deposit".into(),
+            "storage_pattern".into(),
+            "multi_bridge".into(),
+        ],
     )
 }

@@ -4,8 +4,7 @@
 //! `hello-world` contract — the main StellarLend lending protocol.
 
 use crate::framework::{
-    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite,
-    RunConfig,
+    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite, RunConfig,
 };
 use hello_world::{
     deposit::AssetParams, flash_loan::FlashLoanConfig, HelloContract, HelloContractClient,
@@ -19,38 +18,36 @@ pub fn register(suite: &mut BenchmarkSuite) {
 }
 
 fn run_all(config: &RunConfig) -> Vec<BenchmarkResult> {
-    let mut results = Vec::new();
-
-    results.push(bench_initialize(config));
-    results.push(bench_deposit_collateral_native_cold(config));
-    results.push(bench_deposit_collateral_native_warm(config));
-    results.push(bench_borrow_asset_cold(config));
-    results.push(bench_borrow_asset_warm(config));
-    results.push(bench_repay_debt_cold(config));
-    results.push(bench_repay_debt_warm(config));
-    results.push(bench_withdraw_collateral_cold(config));
-    results.push(bench_withdraw_collateral_warm(config));
-    results.push(bench_liquidate(config));
-    results.push(bench_can_be_liquidated(config));
-    results.push(bench_get_max_liquidatable_amount(config));
-    results.push(bench_get_liquidation_incentive(config));
-    results.push(bench_execute_flash_loan(config));
-    results.push(bench_set_risk_params(config));
-    results.push(bench_set_emergency_pause(config));
-    results.push(bench_get_health_factor(config));
-    results.push(bench_get_user_position(config));
-    results.push(bench_get_user_asset_list(config));
-    results.push(bench_get_user_total_collateral_value(config));
-    results.push(bench_set_treasury(config));
-    results.push(bench_get_treasury(config));
-    results.push(bench_set_fee_config(config));
-    results.push(bench_get_fee_config(config));
-    results.push(bench_get_reserve_balance(config));
-    results.push(bench_update_asset_config(config));
-    results.push(bench_transfer_admin(config));
-    results.push(bench_deposit_collateral_multi_asset_storage(config));
-
-    results
+    vec![
+        bench_initialize(config),
+        bench_deposit_collateral_native_cold(config),
+        bench_deposit_collateral_native_warm(config),
+        bench_borrow_asset_cold(config),
+        bench_borrow_asset_warm(config),
+        bench_repay_debt_cold(config),
+        bench_repay_debt_warm(config),
+        bench_withdraw_collateral_cold(config),
+        bench_withdraw_collateral_warm(config),
+        bench_liquidate(config),
+        bench_can_be_liquidated(config),
+        bench_get_max_liquidatable_amount(config),
+        bench_get_liquidation_incentive(config),
+        bench_execute_flash_loan(config),
+        bench_set_risk_params(config),
+        bench_set_emergency_pause(config),
+        bench_get_health_factor(config),
+        bench_get_user_position(config),
+        bench_get_user_asset_list(config),
+        bench_get_user_total_collateral_value(config),
+        bench_set_treasury(config),
+        bench_get_treasury(config),
+        bench_set_fee_config(config),
+        bench_get_fee_config(config),
+        bench_get_reserve_balance(config),
+        bench_update_asset_config(config),
+        bench_transfer_admin(config),
+        bench_deposit_collateral_multi_asset_storage(config),
+    ]
 }
 
 // ─── Setup helpers ────────────────────────────────────────────────────────────
@@ -93,9 +90,14 @@ fn bench_initialize(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Initialize core lending contract — admin setup, storage init",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "init".into()],
     )
@@ -114,9 +116,14 @@ fn bench_deposit_collateral_native_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit native XLM collateral — first deposit (cold storage write)",
-        insns, mem, 1, 3, true,
+        insns,
+        mem,
+        1,
+        3,
+        true,
         get_budget(config, op),
         vec!["deposit".into(), "native".into(), "cold".into()],
     )
@@ -133,9 +140,14 @@ fn bench_deposit_collateral_native_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit native XLM collateral — subsequent deposit (warm storage update)",
-        insns, mem, 1, 2, false,
+        insns,
+        mem,
+        1,
+        2,
+        false,
         get_budget(config, "hello_world::deposit_collateral"),
         vec!["deposit".into(), "native".into(), "warm".into()],
     )
@@ -154,9 +166,14 @@ fn bench_borrow_asset_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Borrow asset — first borrow (cold: collateral check + debt write)",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["borrow".into(), "cold".into()],
     )
@@ -173,9 +190,14 @@ fn bench_borrow_asset_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Borrow asset — subsequent borrow (warm: debt accumulation)",
-        insns, mem, 2, 1, false,
+        insns,
+        mem,
+        2,
+        1,
+        false,
         get_budget(config, "hello_world::borrow_asset"),
         vec!["borrow".into(), "warm".into()],
     )
@@ -193,9 +215,14 @@ fn bench_repay_debt_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Repay debt — partial repayment (cold: debt read + write)",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["repay".into(), "cold".into()],
     )
@@ -211,9 +238,14 @@ fn bench_repay_debt_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Repay debt — subsequent repayment (warm storage)",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "hello_world::repay_debt"),
         vec!["repay".into(), "warm".into()],
     )
@@ -231,9 +263,14 @@ fn bench_withdraw_collateral_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Withdraw collateral — cold: health check + balance update",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["withdraw".into(), "cold".into()],
     )
@@ -249,9 +286,14 @@ fn bench_withdraw_collateral_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Withdraw collateral — warm storage",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "hello_world::withdraw_collateral"),
         vec!["withdraw".into(), "warm".into()],
     )
@@ -270,9 +312,14 @@ fn bench_liquidate(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Liquidate position — health factor check + collateral/debt update",
-        insns, mem, 3, 3, true,
+        insns,
+        mem,
+        3,
+        3,
+        true,
         get_budget(config, op),
         vec!["liquidate".into(), "cold".into()],
     )
@@ -289,9 +336,14 @@ fn bench_can_be_liquidated(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Check if position can be liquidated — risk params read + ratio check",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "liquidation".into()],
     )
@@ -307,9 +359,14 @@ fn bench_get_max_liquidatable_amount(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get max liquidatable amount — risk params read + calculation",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "liquidation".into()],
     )
@@ -325,9 +382,14 @@ fn bench_get_liquidation_incentive(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get liquidation incentive amount — bonus calculation",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "liquidation".into()],
     )
@@ -353,9 +415,14 @@ fn bench_execute_flash_loan(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Execute flash loan — borrow + fee check + repayment validation",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["flash_loan".into(), "cold".into()],
     )
@@ -373,9 +440,14 @@ fn bench_set_risk_params(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set risk parameters — admin auth + storage write",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "risk".into()],
     )
@@ -391,9 +463,14 @@ fn bench_set_emergency_pause(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set emergency pause — admin auth + single storage write",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "pause".into()],
     )
@@ -410,9 +487,14 @@ fn bench_transfer_admin(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Transfer admin — auth check + storage update",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into()],
     )
@@ -435,9 +517,14 @@ fn bench_update_asset_config(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Update asset configuration — admin auth + storage write",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "asset_config".into()],
     )
@@ -456,9 +543,14 @@ fn bench_set_treasury(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set treasury address — admin auth + storage write",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "treasury".into()],
     )
@@ -476,9 +568,14 @@ fn bench_get_treasury(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get treasury address — single storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "treasury".into()],
     )
@@ -494,9 +591,14 @@ fn bench_set_fee_config(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set fee configuration — admin auth + storage write",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "fees".into()],
     )
@@ -513,9 +615,14 @@ fn bench_get_fee_config(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get fee configuration — single storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "fees".into()],
     )
@@ -531,9 +638,14 @@ fn bench_get_reserve_balance(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get reserve balance — storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "treasury".into()],
     )
@@ -551,9 +663,14 @@ fn bench_get_health_factor(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get health factor — collateral + debt reads + ratio calculation",
-        insns, mem, 2, 0, false,
+        insns,
+        mem,
+        2,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "health_factor".into()],
     )
@@ -569,9 +686,14 @@ fn bench_get_user_position(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get full user position — multi-storage read",
-        insns, mem, 3, 0, false,
+        insns,
+        mem,
+        3,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "position".into()],
     )
@@ -587,9 +709,14 @@ fn bench_get_user_asset_list(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get user asset list — storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "assets".into()],
     )
@@ -605,9 +732,14 @@ fn bench_get_user_total_collateral_value(config: &RunConfig) -> BenchmarkResult 
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get total collateral value — asset list + per-asset reads",
-        insns, mem, 2, 0, false,
+        insns,
+        mem,
+        2,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "collateral".into()],
     )
@@ -632,9 +764,14 @@ fn bench_deposit_collateral_multi_asset_storage(config: &RunConfig) -> Benchmark
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit collateral with 5 prior deposits — warm storage write pattern",
-        insns, mem, 1, 2, false,
+        insns,
+        mem,
+        1,
+        2,
+        false,
         get_budget(config, "hello_world::deposit_collateral"),
         vec!["deposit".into(), "storage_pattern".into(), "warm".into()],
     )

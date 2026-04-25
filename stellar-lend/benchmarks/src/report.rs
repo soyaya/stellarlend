@@ -34,8 +34,8 @@ pub struct ContractSummary {
 pub fn print_summary(results: &[BenchmarkResult]) {
     println!("\n{}", "─".repeat(90));
     println!(
-        "{:<45} {:>14} {:>12} {:>10} {}",
-        "Operation", "Instructions", "Memory(B)", "Storage", "Status"
+        "{:<45} {:>14} {:>12} {:>10} Status",
+        "Operation", "Instructions", "Memory(B)", "Storage"
     );
     println!("{}", "─".repeat(90));
 
@@ -51,7 +51,11 @@ pub fn print_summary(results: &[BenchmarkResult]) {
         let ops = &by_contract[contract];
         println!("\n  [{}]", contract.to_uppercase());
         for r in ops.iter() {
-            let status = if r.within_budget { "✓ OK" } else { "✗ OVER BUDGET" };
+            let status = if r.within_budget {
+                "✓ OK"
+            } else {
+                "✗ OVER BUDGET"
+            };
             let storage = format!("R:{} W:{}", r.storage_reads, r.storage_writes);
             let cold_tag = if r.cold_storage { " (cold)" } else { "" };
             println!(
@@ -105,9 +109,14 @@ pub fn write_json(results: &[BenchmarkResult], path: &str) {
     }
     // Compute averages and fix min_instructions sentinel
     for (contract, summary) in summary_by_contract.iter_mut() {
-        let ops: Vec<&BenchmarkResult> = results.iter().filter(|r| &r.contract == contract).collect();
+        let ops: Vec<&BenchmarkResult> =
+            results.iter().filter(|r| &r.contract == contract).collect();
         let total_insns: u64 = ops.iter().map(|r| r.instructions).sum();
-        summary.avg_instructions = if ops.is_empty() { 0 } else { total_insns / ops.len() as u64 };
+        summary.avg_instructions = if ops.is_empty() {
+            0
+        } else {
+            total_insns / ops.len() as u64
+        };
         // Reset sentinel if no results were found
         if summary.min_instructions == u64::MAX {
             summary.min_instructions = 0;
@@ -135,7 +144,10 @@ pub fn compare_baseline(results: &[BenchmarkResult], baseline_path: &str) -> Vec
     let baseline_json = match fs::read_to_string(baseline_path) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Warning: Could not read baseline file '{}': {}", baseline_path, e);
+            eprintln!(
+                "Warning: Could not read baseline file '{}': {}",
+                baseline_path, e
+            );
             return Vec::new();
         }
     };

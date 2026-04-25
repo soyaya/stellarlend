@@ -4,8 +4,7 @@
 //! `stellarlend-amm` contract.
 
 use crate::framework::{
-    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite,
-    RunConfig,
+    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite, RunConfig,
 };
 use soroban_sdk::{symbol_short, testutils::Address as _, vec as soroban_vec, Address, Env};
 use stellarlend_amm::{
@@ -20,25 +19,23 @@ pub fn register(suite: &mut BenchmarkSuite) {
 }
 
 fn run_all(config: &RunConfig) -> Vec<BenchmarkResult> {
-    let mut results = Vec::new();
-
-    results.push(bench_initialize_amm_settings(config));
-    results.push(bench_add_amm_protocol(config));
-    results.push(bench_update_amm_settings(config));
-    results.push(bench_execute_swap_cold(config));
-    results.push(bench_execute_swap_warm(config));
-    results.push(bench_add_liquidity_cold(config));
-    results.push(bench_add_liquidity_warm(config));
-    results.push(bench_remove_liquidity(config));
-    results.push(bench_auto_swap_for_collateral(config));
-    results.push(bench_validate_amm_callback(config));
-    results.push(bench_get_amm_settings(config));
-    results.push(bench_get_amm_protocols(config));
-    results.push(bench_get_swap_history_empty(config));
-    results.push(bench_get_swap_history_populated(config));
-    results.push(bench_get_liquidity_history(config));
-
-    results
+    vec![
+        bench_initialize_amm_settings(config),
+        bench_add_amm_protocol(config),
+        bench_update_amm_settings(config),
+        bench_execute_swap_cold(config),
+        bench_execute_swap_warm(config),
+        bench_add_liquidity_cold(config),
+        bench_add_liquidity_warm(config),
+        bench_remove_liquidity(config),
+        bench_auto_swap_for_collateral(config),
+        bench_validate_amm_callback(config),
+        bench_get_amm_settings(config),
+        bench_get_amm_protocols(config),
+        bench_get_swap_history_empty(config),
+        bench_get_swap_history_populated(config),
+        bench_get_liquidity_history(config),
+    ]
 }
 
 // ─── Setup helpers ────────────────────────────────────────────────────────────
@@ -56,7 +53,7 @@ fn default_protocol_config(env: &Env, protocol_addr: &Address) -> AmmProtocolCon
             env,
             TokenPair {
                 token_a: None,
-                token_b: None,
+                token_b: Some(protocol_addr.clone()),
                 pool_address: pool,
             }
         ],
@@ -67,9 +64,7 @@ fn setup_initialized(env: &Env) -> (AmmContractClient<'static>, Address) {
     let contract_id = env.register(AmmContract, ());
     let client = AmmContractClient::new(env, &contract_id);
     let admin = Address::generate(env);
-    client
-        .initialize_amm_settings(&admin, &100i128, &500i128, &1_000i128)
-        ;
+    client.initialize_amm_settings(&admin, &100i128, &500i128, &1_000i128);
     (client, admin)
 }
 
@@ -85,7 +80,7 @@ fn default_swap_params(env: &Env, protocol: &Address) -> SwapParams {
     SwapParams {
         protocol: protocol.clone(),
         token_in: None,
-        token_out: None,
+        token_out: Some(protocol.clone()),
         amount_in: 10_000i128,
         min_amount_out: 9_000i128,
         slippage_tolerance: 100i128,
@@ -97,12 +92,15 @@ fn default_liquidity_params(env: &Env, protocol: &Address) -> LiquidityParams {
     LiquidityParams {
         protocol: protocol.clone(),
         token_a: None,
-        token_b: None,
+        token_b: Some(protocol.clone()),
         amount_a: 50_000i128,
         amount_b: 50_000i128,
         min_amount_a: 0i128,
         min_amount_b: 0i128,
         deadline: env.ledger().timestamp() + 3600,
+        tick_lower: None,
+        tick_upper: None,
+        fee_tier: None,
     }
 }
 
@@ -116,15 +114,18 @@ fn bench_initialize_amm_settings(config: &RunConfig) -> BenchmarkResult {
     let admin = Address::generate(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        client
-            .initialize_amm_settings(&admin, &100i128, &500i128, &1_000i128)
-            ;
+        client.initialize_amm_settings(&admin, &100i128, &500i128, &1_000i128);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Initialize AMM settings — admin setup + storage write",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "init".into()],
     )
@@ -142,9 +143,14 @@ fn bench_add_amm_protocol(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Register AMM protocol — admin auth + protocol map write",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "protocol".into()],
     )
@@ -167,9 +173,14 @@ fn bench_update_amm_settings(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Update AMM settings — admin auth + settings overwrite",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, op),
         vec!["admin".into(), "settings".into()],
     )
@@ -189,9 +200,14 @@ fn bench_execute_swap_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Execute token swap — cold: protocol lookup + slippage check + history write",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["swap".into(), "cold".into()],
     )
@@ -209,9 +225,14 @@ fn bench_execute_swap_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Execute token swap — warm: history append (existing swap records)",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "amm::execute_swap"),
         vec!["swap".into(), "warm".into()],
     )
@@ -231,9 +252,14 @@ fn bench_add_liquidity_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Add liquidity — cold: protocol lookup + LP token calc + history write",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["liquidity".into(), "cold".into()],
     )
@@ -251,9 +277,14 @@ fn bench_add_liquidity_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Add liquidity — warm: history append",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "amm::add_liquidity"),
         vec!["liquidity".into(), "warm".into()],
     )
@@ -276,7 +307,7 @@ fn bench_remove_liquidity(config: &RunConfig) -> BenchmarkResult {
             &user,
             &protocol,
             &None,
-            &None,
+            &Some(protocol.clone()),
             &1_000i128,
             &0i128,
             &0i128,
@@ -285,9 +316,14 @@ fn bench_remove_liquidity(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Remove liquidity — LP token burn + underlying token return + history write",
-        insns, mem, 2, 2, false,
+        insns,
+        mem,
+        2,
+        2,
+        false,
         get_budget(config, op),
         vec!["liquidity".into(), "remove".into()],
     )
@@ -298,17 +334,22 @@ fn bench_remove_liquidity(config: &RunConfig) -> BenchmarkResult {
 fn bench_auto_swap_for_collateral(config: &RunConfig) -> BenchmarkResult {
     let op = "amm::auto_swap_for_collateral";
     let env = fresh_env();
-    let (client, _, _) = setup_with_protocol(&env);
+    let (client, _, protocol) = setup_with_protocol(&env);
     let user = Address::generate(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        let _ = client.auto_swap_for_collateral(&user, &None, &5_000i128);
+        let _ = client.auto_swap_for_collateral(&user, &Some(protocol.clone()), &5_000i128);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Auto-swap for collateral optimization — threshold check + best protocol selection",
-        insns, mem, 2, 1, true,
+        insns,
+        mem,
+        2,
+        1,
+        true,
         get_budget(config, op),
         vec!["swap".into(), "collateral".into()],
     )
@@ -323,7 +364,7 @@ fn bench_validate_amm_callback(config: &RunConfig) -> BenchmarkResult {
     let user = Address::generate(&env);
 
     let callback_data = AmmCallbackData {
-        nonce: 1u64,
+        nonce: 0u64,
         operation: symbol_short!("swap"),
         user: user.clone(),
         expected_amounts: soroban_vec![&env, 9_000i128],
@@ -331,13 +372,18 @@ fn bench_validate_amm_callback(config: &RunConfig) -> BenchmarkResult {
     };
 
     let (insns, mem) = measure_instructions(&env, || {
-        let _ = client.validate_amm_callback(&protocol, &callback_data);
+        client.validate_amm_callback(&protocol, &callback_data);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Validate AMM callback — nonce check + replay protection write",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["callback".into(), "security".into()],
     )
@@ -355,9 +401,14 @@ fn bench_get_amm_settings(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get AMM settings — single storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "settings".into()],
     )
@@ -373,9 +424,14 @@ fn bench_get_amm_protocols(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get all AMM protocols — protocol map read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "protocols".into()],
     )
@@ -391,9 +447,14 @@ fn bench_get_swap_history_empty(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get swap history — empty history (cold read miss)",
-        insns, mem, 1, 0, true,
+        insns,
+        mem,
+        1,
+        0,
+        true,
         get_budget(config, "amm::get_swap_history"),
         vec!["query".into(), "history".into(), "empty".into()],
     )
@@ -415,9 +476,14 @@ fn bench_get_swap_history_populated(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get swap history — 5 records (warm read, deserialization cost)",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, "amm::get_swap_history"),
         vec!["query".into(), "history".into(), "populated".into()],
     )
@@ -436,9 +502,14 @@ fn bench_get_liquidity_history(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get liquidity history — 1 record",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "history".into()],
     )

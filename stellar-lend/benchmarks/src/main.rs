@@ -11,11 +11,11 @@
 //! cargo run --bin run_benchmarks -- --compare baseline.json
 //! ```
 
+mod amm_benchmarks;
 mod bridge_benchmarks;
 mod framework;
 mod hello_world_benchmarks;
 mod lending_benchmarks;
-mod amm_benchmarks;
 mod report;
 
 use framework::{BenchmarkSuite, RunConfig};
@@ -50,8 +50,10 @@ fn main() {
         if !regressions.is_empty() {
             eprintln!("\n[REGRESSION DETECTED] The following operations exceeded gas budgets:");
             for r in &regressions {
-                eprintln!("  ✗ {} — used {} instructions (budget: {}, delta: +{})",
-                    r.operation, r.actual, r.budget, r.delta);
+                eprintln!(
+                    "  ✗ {} — used {} instructions (budget: {}, delta: +{})",
+                    r.operation, r.actual, r.budget, r.delta
+                );
             }
             std::process::exit(1);
         } else {
