@@ -168,4 +168,41 @@ router.post('/submit', submitValidation, lendingController.submit);
  */
 router.get('/transactions/:userAddress', paginationValidation, lendingController.getTransactionHistory);
 
+/**
+ * @openapi
+ * /lending/transactions/{userAddress}/stream:
+ *   get:
+ *     summary: Stream full transaction history as NDJSON
+ *     description: >
+ *       Streams all lending transactions for the given user as newline-delimited JSON
+ *       (one object per line, content-type application/x-ndjson). Uses chunked transfer
+ *       encoding so clients receive items progressively without buffering the full dataset.
+ *     tags:
+ *       - Lending
+ *     parameters:
+ *       - in: path
+ *         name: userAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Stellar public key (Ed25519) of the user
+ *       - in: query
+ *         name: pageSize
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 200
+ *           default: 10
+ *         description: Horizon page size (internal batch size per upstream fetch)
+ *     responses:
+ *       200:
+ *         description: NDJSON stream of TransactionHistoryItem objects
+ *         content:
+ *           application/x-ndjson:
+ *             schema:
+ *               $ref: '#/components/schemas/TransactionHistoryItem'
+ */
+router.get('/transactions/:userAddress/stream', lendingController.streamTransactionHistory);
+
 export default router;

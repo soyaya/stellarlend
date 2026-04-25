@@ -6,6 +6,30 @@ function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
 }
 
+/**
+ * Encode a raw upstream cursor as an opaque base64url string so callers
+ * cannot depend on its internal format.
+ */
+export function encodeCursor(raw: string): string {
+  return Buffer.from(raw, 'utf8').toString('base64url');
+}
+
+const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Decode a client-supplied opaque cursor back to the raw upstream value.
+ * Returns null when the input is not valid base64url or decoding is empty.
+ */
+export function decodeCursor(opaque: string): string | null {
+  if (!opaque || !BASE64URL_RE.test(opaque)) return null;
+  try {
+    const decoded = Buffer.from(opaque, 'base64url').toString('utf8');
+    return decoded.length > 0 ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parsePaginationParams(rawQuery: Record<string, any> = {}): PaginationParams {
   const limitFromQuery = rawQuery.limit;
   const cursorFromQuery = rawQuery.cursor;
@@ -35,7 +59,11 @@ export function parsePaginationParams(rawQuery: Record<string, any> = {}): Pagin
     if (normalizedCursor.length === 0) {
       throw new ValidationError('cursor cannot be empty');
     }
-    cursor = normalizedCursor;
+    const decoded = decodeCursor(normalizedCursor);
+    if (decoded === null) {
+      throw new ValidationError('cursor is invalid or expired');
+    }
+    cursor = decoded;
   }
 
   return {
@@ -45,13 +73,15 @@ export function parsePaginationParams(rawQuery: Record<string, any> = {}): Pagin
 }
 
 export function buildPaginationMeta(
-  cursor: string | null,
+  rawNextCursor: string | null,
   hasMore: boolean,
-  limit: number
+  limit: number,
+  total: number | null = null
 ): PaginationMeta {
   return {
-    cursor,
+    cursor: rawNextCursor !== null ? encodeCursor(rawNextCursor) : null,
     hasMore,
     limit,
+    total,
   };
 }

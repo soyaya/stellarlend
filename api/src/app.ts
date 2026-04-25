@@ -7,6 +7,7 @@ import { bodySizeLimitMiddleware } from './middleware/bodySizeLimit';
 import lendingRoutes from './routes/lending.routes';
 import healthRoutes from './routes/health.routes';
 import protocolRoutes from './routes/protocol.routes';
+import portfolioRoutes from './routes/portfolio.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { idempotencyMiddleware } from './middleware/idempotency';
 import { swaggerSpec } from './config/swagger';
@@ -89,6 +90,7 @@ app.get('/api/openapi.json', (_req, res) => {
 app.use('/api/health', healthRoutes);
 app.use('/api/protocol', protocolRoutes);
 app.use('/api/lending', idempotencyMiddleware, userRateLimiter, lendingRoutes);
+app.use('/api/portfolio', portfolioRoutes);
 
 app.use(errorHandler);
 

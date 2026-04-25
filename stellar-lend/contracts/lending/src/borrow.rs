@@ -16,7 +16,7 @@ pub use crate::events::{BorrowCollateralDepositEvent, BorrowEvent, RepayEvent};
 pub type DepositEvent = BorrowCollateralDepositEvent;
 
 use crate::pause::{self, PauseType};
-use soroban_sdk::{contracterror, contracttype, Address, Env, I256};
+use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Symbol, I256};
 
 /// Errors that can occur during borrow operations.
 #[contracterror]
@@ -72,6 +72,22 @@ pub enum BorrowDataKey {
     CloseFactorBps,
     /// Liquidation incentive in basis points (e.g. 1000 = 10%)
     LiquidationIncentiveBps,
+    /// Stablecoin configuration for a specific asset
+    AssetStablecoinConfig(Address),
+}
+
+/// Dynamic stablecoin configuration.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StablecoinConfig {
+    /// Target price in oracle units (e.g. 100_000_000 for $1.00)
+    pub target_price: i128,
+    /// Minimum deviation before stability fee kicks in (basis points)
+    pub peg_threshold_bps: i128,
+    /// Fee added to interest rate when depegged (basis points)
+    pub stability_fee_bps: i128,
+    /// Threshold for emergency actions (basis points)
+    pub emergency_threshold_bps: i128,
 }
 
 /// User debt position tracking.
@@ -303,13 +319,62 @@ pub(crate) fn calculate_interest(env: &Env, position: &DebtPosition) -> Result<i
     let rate_256 = I256::from_i128(env, INTEREST_RATE_PER_YEAR);
     let time_256 = I256::from_i128(env, time_elapsed as i128);
 
-    let interest_256 = borrowed_256
+    let mut interest_256 = borrowed_256
         .mul(&rate_256)
         .mul(&time_256)
         .div(&I256::from_i128(env, 10000))
         .div(&I256::from_i128(env, SECONDS_PER_YEAR as i128));
 
+    // Stability fee logic
+    if let Some(config) = get_stablecoin_config(env, &position.asset) {
+        if let Some(oracle) = get_oracle(env) {
+            let price = get_asset_price(env, &oracle, &position.asset);
+            let deviation = config.target_price.saturating_sub(price);
+            let deviation_bps = if config.target_price > 0 {
+                deviation
+                    .saturating_mul(10000)
+                    .saturating_div(config.target_price)
+            } else {
+                0
+            };
+
+            if deviation_bps > config.peg_threshold_bps {
+                let stability_fee_256 = borrowed_256
+                    .mul(&I256::from_i128(env, config.stability_fee_bps))
+                    .mul(&time_256)
+                    .div(&I256::from_i128(env, 10000))
+                    .div(&I256::from_i128(env, SECONDS_PER_YEAR as i128));
+
+                interest_256 = interest_256.add(&stability_fee_256);
+
+                crate::events::PegDeviationEvent {
+                    asset: position.asset.clone(),
+                    price,
+                    target_price: config.target_price,
+                    deviation_bps,
+                    timestamp: env.ledger().timestamp(),
+                }
+                .publish(env);
+
+                crate::events::StabilityFeeAppliedEvent {
+                    asset: position.asset.clone(),
+                    fee_bps: config.stability_fee_bps,
+                    timestamp: env.ledger().timestamp(),
+                }
+                .publish(env);
+            }
+        }
+    }
+
     interest_256.to_i128().ok_or(BorrowError::Overflow)
+}
+
+fn get_asset_price(env: &Env, oracle: &Address, asset: &Address) -> i128 {
+    env.invoke_contract(
+        oracle,
+        &Symbol::new(env, "price"),
+        (asset.clone(),).into_val(env),
+    )
 }
 
 fn get_debt_position(env: &Env, user: &Address, default_asset: Option<&Address>) -> DebtPosition {
@@ -528,4 +593,27 @@ pub fn set_liquidation_incentive_bps(
         .persistent()
         .set(&BorrowDataKey::LiquidationIncentiveBps, &bps);
     Ok(())
+}
+
+pub fn set_stablecoin_config(
+    env: &Env,
+    admin: &Address,
+    asset: Address,
+    config: StablecoinConfig,
+) -> Result<(), BorrowError> {
+    let current = get_admin(env).ok_or(BorrowError::Unauthorized)?;
+    if *admin != current {
+        return Err(BorrowError::Unauthorized);
+    }
+    admin.require_auth();
+    env.storage()
+        .persistent()
+        .set(&BorrowDataKey::AssetStablecoinConfig(asset), &config);
+    Ok(())
+}
+
+pub fn get_stablecoin_config(env: &Env, asset: &Address) -> Option<StablecoinConfig> {
+    env.storage()
+        .persistent()
+        .get(&BorrowDataKey::AssetStablecoinConfig(asset.clone()))
 }

@@ -82,6 +82,16 @@ export interface ProtocolStatsResponse {
   utilizationRate: string;
   numberOfUsers: number;
   tvl: string;
+  stablecoinStats?: StablecoinAssetStats[];
+}
+
+export interface StablecoinAssetStats {
+  asset: string;
+  price: string;
+  targetPrice: string;
+  deviationBps: number;
+  stabilityFeeBps: number;
+  isDepegged: boolean;
 }
 
 export enum TransactionStatus {

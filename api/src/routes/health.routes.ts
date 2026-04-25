@@ -76,4 +76,43 @@ router.get('/ready', lendingController.readinessCheck);
  */
 router.get('/', lendingController.healthCheck);
 
+/**
+ * @openapi
+ * /health/coalescing:
+ *   get:
+ *     summary: Request coalescing metrics
+ *     tags:
+ *       - Health
+ *     responses:
+ *       200:
+ *         description: Coalescing metrics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 metrics:
+ *                   type: object
+ *                   properties:
+ *                     totalRequests:
+ *                       type: integer
+ *                       description: Total number of requests processed
+ *                     coalescedRequests:
+ *                       type: integer
+ *                       description: Number of requests that were coalesced
+ *                     activeOperations:
+ *                       type: integer
+ *                       description: Number of currently active coalescing operations
+ *                     averageWaitTime:
+ *                       type: number
+ *                       description: Average wait time for coalesced requests in milliseconds
+ *                     timeoutCount:
+ *                       type: integer
+ *                       description: Number of requests that timed out waiting for coalescing
+ */
+router.get('/coalescing', lendingController.coalescingMetrics);
+
 export default router;

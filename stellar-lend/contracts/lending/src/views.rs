@@ -9,7 +9,7 @@
 //! - Collateral and debt values depend on the oracle; ensure the oracle is correct and trusted.
 //! - Health factor uses the admin-set liquidation threshold consistently.
 
-use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, I256};
+use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec, I256};
 
 use crate::borrow::{
     get_close_factor_bps, get_liquidation_incentive_bps, get_liquidation_threshold_bps, get_oracle,
@@ -42,6 +42,36 @@ pub struct UserPositionSummary {
     pub debt_value: i128,
     /// Health factor scaled by 10000 (10000 = 1.0). 0 if oracle not set or unconfigured.
     pub health_factor: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtocolMetrics {
+    pub total_value_locked: i128,
+    pub total_deposits: i128,
+    pub total_borrows: i128,
+    pub utilization_rate: i128,
+    pub total_users: u32,
+    pub total_transactions: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StablecoinAssetStats {
+    pub asset: Address,
+    pub price: i128,
+    pub target_price: i128,
+    pub deviation_bps: i128,
+    pub stability_fee_bps: i128,
+    pub is_depegged: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtocolReport {
+    pub metrics: ProtocolMetrics,
+    pub stablecoin_stats: Vec<StablecoinAssetStats>,
+    pub timestamp: u64,
 }
 
 /// Fetches price for `asset` from the configured oracle contract.
@@ -304,5 +334,53 @@ pub fn get_user_position(env: &Env, user: &Address) -> UserPositionSummary {
         debt_balance,
         debt_value: debt_value_usd,
         health_factor,
+    }
+}
+
+pub fn get_protocol_report(env: &Env, stablecoin_assets: Vec<Address>) -> ProtocolReport {
+    // Basic metrics (stubbed or partially implemented for now)
+    let metrics = ProtocolMetrics {
+        total_value_locked: 0, // Would need to aggregate across all users/assets
+        total_deposits: 0,
+        total_borrows: 0,
+        utilization_rate: 0,
+        total_users: 0,
+        total_transactions: 0,
+    };
+
+    let mut stablecoin_stats = Vec::new(env);
+    if let Some(oracle) = borrow::get_oracle(env) {
+        for asset in stablecoin_assets.iter() {
+            if let Some(config) = borrow::get_stablecoin_config(env, &asset) {
+                let price = env.invoke_contract::<i128>(
+                    &oracle,
+                    &soroban_sdk::Symbol::new(env, "price"),
+                    (asset.clone(),).into_val(env),
+                );
+                let deviation = config.target_price.saturating_sub(price);
+                let deviation_bps = if config.target_price > 0 {
+                    deviation
+                        .saturating_mul(10000)
+                        .saturating_div(config.target_price)
+                } else {
+                    0
+                };
+
+                stablecoin_stats.push_back(StablecoinAssetStats {
+                    asset,
+                    price,
+                    target_price: config.target_price,
+                    deviation_bps,
+                    stability_fee_bps: config.stability_fee_bps,
+                    is_depegged: deviation_bps > config.peg_threshold_bps,
+                });
+            }
+        }
+    }
+
+    ProtocolReport {
+        metrics,
+        stablecoin_stats,
+        timestamp: env.ledger().timestamp(),
     }
 }

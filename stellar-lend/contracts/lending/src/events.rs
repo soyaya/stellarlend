@@ -86,6 +86,24 @@ pub struct FlashLoanEvent {
     pub timestamp: u64,
 }
 
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct PegDeviationEvent {
+    pub asset: Address,
+    pub price: i128,
+    pub target_price: i128,
+    pub deviation_bps: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct StabilityFeeAppliedEvent {
+    pub asset: Address,
+    pub fee_bps: i128,
+    pub timestamp: u64,
+}
+
 // ─── Data store contract ────────────────────────────────────────────────────
 
 #[contractevent(topics = ["ds_init"], data_format = "single-value")]
