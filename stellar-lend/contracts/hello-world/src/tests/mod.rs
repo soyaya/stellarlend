@@ -1,3 +1,6 @@
+pub mod diff_harness;
+pub mod differential_test;
+pub mod migration_verification_test;
 pub mod access_control_regression_test;
 pub mod admin_test;
 pub mod test_helpers;
