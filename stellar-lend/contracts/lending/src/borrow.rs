@@ -16,7 +16,7 @@ pub use crate::events::{BorrowCollateralDepositEvent, BorrowEvent, RepayEvent};
 pub type DepositEvent = BorrowCollateralDepositEvent;
 
 use crate::pause::{self, PauseType};
-use soroban_sdk::{contracterror, contracttype, Address, Env, I256, Symbol, IntoVal};
+use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Symbol, I256};
 
 /// Errors that can occur during borrow operations.
 #[contracterror]
@@ -331,7 +331,9 @@ pub(crate) fn calculate_interest(env: &Env, position: &DebtPosition) -> Result<i
             let price = get_asset_price(env, &oracle, &position.asset);
             let deviation = config.target_price.saturating_sub(price);
             let deviation_bps = if config.target_price > 0 {
-                deviation.saturating_mul(10000).saturating_div(config.target_price)
+                deviation
+                    .saturating_mul(10000)
+                    .saturating_div(config.target_price)
             } else {
                 0
             };
@@ -342,7 +344,7 @@ pub(crate) fn calculate_interest(env: &Env, position: &DebtPosition) -> Result<i
                     .mul(&time_256)
                     .div(&I256::from_i128(env, 10000))
                     .div(&I256::from_i128(env, SECONDS_PER_YEAR as i128));
-                
+
                 interest_256 = interest_256.add(&stability_fee_256);
 
                 crate::events::PegDeviationEvent {
@@ -351,13 +353,15 @@ pub(crate) fn calculate_interest(env: &Env, position: &DebtPosition) -> Result<i
                     target_price: config.target_price,
                     deviation_bps,
                     timestamp: env.ledger().timestamp(),
-                }.publish(env);
+                }
+                .publish(env);
 
                 crate::events::StabilityFeeAppliedEvent {
                     asset: position.asset.clone(),
                     fee_bps: config.stability_fee_bps,
                     timestamp: env.ledger().timestamp(),
-                }.publish(env);
+                }
+                .publish(env);
             }
         }
     }
@@ -591,16 +595,25 @@ pub fn set_liquidation_incentive_bps(
     Ok(())
 }
 
-pub fn set_stablecoin_config(env: &Env, admin: &Address, asset: Address, config: StablecoinConfig) -> Result<(), BorrowError> {
+pub fn set_stablecoin_config(
+    env: &Env,
+    admin: &Address,
+    asset: Address,
+    config: StablecoinConfig,
+) -> Result<(), BorrowError> {
     let current = get_admin(env).ok_or(BorrowError::Unauthorized)?;
     if *admin != current {
         return Err(BorrowError::Unauthorized);
     }
     admin.require_auth();
-    env.storage().persistent().set(&BorrowDataKey::AssetStablecoinConfig(asset), &config);
+    env.storage()
+        .persistent()
+        .set(&BorrowDataKey::AssetStablecoinConfig(asset), &config);
     Ok(())
 }
 
 pub fn get_stablecoin_config(env: &Env, asset: &Address) -> Option<StablecoinConfig> {
-    env.storage().persistent().get(&BorrowDataKey::AssetStablecoinConfig(asset.clone()))
+    env.storage()
+        .persistent()
+        .get(&BorrowDataKey::AssetStablecoinConfig(asset.clone()))
 }
