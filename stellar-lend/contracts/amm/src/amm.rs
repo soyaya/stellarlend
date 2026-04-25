@@ -185,6 +185,12 @@ pub struct LiquidityParams {
     pub min_amount_b: i128,
     /// Deadline for the operation (timestamp)
     pub deadline: u64,
+    /// Lower tick for concentrated liquidity (optional)
+    pub tick_lower: Option<i32>,
+    /// Upper tick for concentrated liquidity (optional)
+    pub tick_upper: Option<i32>,
+    /// Fee tier configuration
+    pub fee_tier: Option<u32>,
 }
 
 /// Liquidity operation record
@@ -207,6 +213,10 @@ pub struct LiquidityRecord {
     pub amount_b: i128,
     /// LP tokens received/burned
     pub lp_tokens: i128,
+    /// Lower tick for concentrated liquidity (optional)
+    pub tick_lower: Option<i32>,
+    /// Upper tick for concentrated liquidity (optional)
+    pub tick_upper: Option<i32>,
     /// Timestamp
     pub timestamp: u64,
 }

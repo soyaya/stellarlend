@@ -2,18 +2,25 @@ pub mod cache;
 pub mod config;
 pub mod error;
 pub mod indexer;
+pub mod metrics;
 pub mod models;
+pub mod parallel_indexer;
 pub mod parser;
 pub mod query;
 pub mod repository;
+
+#[cfg(test)]
+pub mod tests;
 
 pub use cache::CacheService;
 pub use config::*;
 pub use error::{IndexerError, IndexerResult};
 pub use indexer::IndexerService;
+pub use metrics::{IndexingMetrics, MetricsSnapshot};
 pub use models::{
     CreateEvent, Event, EventQuery, EventStats, EventUpdate, IndexingMetadata, UpdateType,
 };
+pub use parallel_indexer::{BlockProcessor, BlockRangeResult, BlockRangeTask, ParallelIndexer, StateManager};
 pub use parser::{create_erc20_abi, EventParser};
 pub use query::QueryService;
 pub use repository::EventRepository;

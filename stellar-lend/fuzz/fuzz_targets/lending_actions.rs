@@ -1,10 +1,90 @@
+use stellarlend_contracts_lending::invariants::{
+    assert_all_stateless, check_inv_003_no_mint_on_borrow, check_inv_005_interest_monotonicity,
+    check_inv_006_reserve_monotonicity, check_inv_008_access_control,
+    ExemptionFlags, InvariantViolation,
+};
+
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
+    // Minimum data length guard — need at least one full action
+    if data.len() < ACTION_BYTES_LEN {
+        return;
+    }
+ 
+    let env = soroban_sdk::Env::default();
+ 
+    // Build exemption flags from protocol state at fuzz start
+    let exempt = ExemptionFlags::default();
+ 
+    // ── Snapshot state BEFORE action sequence ──
+    let assets_before   = stellarlend_contract_fuzz::lending::get_total_assets(&env);
+    let index_before    = stellarlend_contract_fuzz::lending::get_interest_index(&env);
+    let reserves_before = stellarlend_contract_fuzz::lending::get_protocol_reserves(&env);
+    let admin_before    = stellarlend_contract_fuzz::lending::get_admin(&env);
+ 
+    // ── Run the existing action sequence (your existing logic) ──
     stellarlend_contract_fuzz::lending::run(data);
+
+    // after each action:
+    let violations = invariants::assert_all_for_user(&env, &user);
+    if !violations.is_empty() {
+        panic!("INVARIANT VIOLATION [{}]: {}", violations[0].invariant_id, violations[0].message);
+    }
+ 
+    // ── Assert stateless invariants after all actions complete ──
+    let violations = assert_all_stateless(&env, &exempt);
+    if !violations.is_empty() {
+        let v = violations.get(0).unwrap();
+        panic!(
+            "INVARIANT VIOLATION [{id}]: {msg}\nDetail: {detail}\nSeed data len: {len}",
+            id     = v.invariant_id,
+            msg    = v.message,
+            detail = v.detail,
+            len    = data.len(),
+        );
+    }
+ 
+    // ── Assert before/after invariants ──
+    if let Err(v) = check_inv_003_no_mint_on_borrow(&env, assets_before) {
+        panic_on_violation(&v, data);
+    }
+    if let Err(v) = check_inv_005_interest_monotonicity(&env, index_before, &exempt) {
+        panic_on_violation(&v, data);
+    }
+    if let Err(v) = check_inv_006_reserve_monotonicity(&env, reserves_before) {
+        panic_on_violation(&v, data);
+    }
+    if let Err(v) = check_inv_008_access_control(&env, &admin_before) {
+        panic_on_violation(&v, data);
+    }
 });
+
+#[inline]
+fn panic_on_violation(v: &InvariantViolation, seed: &[u8]) -> ! {
+    panic!(
+        "\n\
+        ══════════════════════════════════════════\n\
+        INVARIANT VIOLATION DETECTED\n\
+        ══════════════════════════════════════════\n\
+        ID      : {id}\n\
+        Message : {msg}\n\
+        Detail  : {detail}\n\
+        Seed len: {len} bytes\n\
+        Seed hex: {hex}\n\
+        ──────────────────────────────────────────\n\
+        To reproduce:\n\
+          cargo fuzz run lending_actions -- -seed={len}\n\
+        ══════════════════════════════════════════",
+        id     = v.invariant_id,
+        msg    = v.message,
+        detail = v.detail,
+        len    = seed.len(),
+        hex    = seed.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(""),
+    )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Custom libFuzzer mutator (protocol-aware)

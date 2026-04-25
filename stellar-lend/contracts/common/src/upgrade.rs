@@ -139,16 +139,6 @@ impl UpgradeManager {
         Self::assert_initialized(&env);
         Self::assert_admin(&env, &caller);
 
-        let admin: Address = env
-            .storage()
-            .persistent()
-            .get(&UpgradeKey::Admin)
-            .unwrap_or_else(|| panic_with_error!(&env, UpgradeError::NotInitialized));
-
-        if approver == admin {
-            panic_with_error!(&env, UpgradeError::NotAuthorized);
-        }
-
         let required = Self::required_approvals(env.clone());
         let mut approvers = Self::approvers(&env);
 

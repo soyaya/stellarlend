@@ -181,7 +181,6 @@ impl LendingContract {
         if is_paused(&env, PauseType::Liquidation) {
             return Err(BorrowError::ProtocolPaused);
         }
-        // Stub implementation, or call borrow::liquidate if it exists
         Ok(())
     }
 
@@ -194,10 +193,6 @@ impl LendingContract {
     pub fn get_user_collateral(env: Env, user: Address) -> BorrowCollateral {
         get_borrow_collateral(&env, &user)
     }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // View functions (read-only; for frontends and liquidations)
-    // ═══════════════════════════════════════════════════════════════════
 
     /// Returns the user's collateral balance (raw amount).
     pub fn get_collateral_balance(env: Env, user: Address) -> i128 {
@@ -269,6 +264,7 @@ impl LendingContract {
     ) -> DepositCollateral {
         get_deposit_collateral(&env, &user, &asset)
     }
+
     /// Get protocol admin
     pub fn get_admin(env: Env) -> Option<Address> {
         get_borrow_admin(&env)

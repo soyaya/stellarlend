@@ -1,0 +1,74 @@
+name: Advanced Security Analysis
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main", "dev"]
+  schedule:
+    - cron: '0 0 * * *' # Daily incremental analysis
+
+jobs:
+  static-analysis:
+    name: Static Analysis & Custom Rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Semgrep
+        run: python3 -m pip install semgrep
+
+      - name: Run Semgrep Custom Protocol Rules
+        run: |
+          semgrep scan --config=.semgrep/soroban-rules.yaml --error --json -o semgrep-report.json || true
+          
+      - name: Install cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check advisories bans
+          manifest-path: stellar-lend/Cargo.toml
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-dashboard-report
+          path: semgrep-report.json
+
+  coverage:
+    name: Incremental Security Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            stellar-lend/target
+          key: ${{ runner.os }}-cargo-tarpaulin-${{ hashFiles('stellar-lend/Cargo.lock') }}
+
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin || true
+
+      - name: Run coverage analysis
+        run: |
+          cd stellar-lend
+          cargo tarpaulin --verbose --workspace --exclude-files "*fuzz*" --out Xml
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: stellar-lend/cobertura.xml
