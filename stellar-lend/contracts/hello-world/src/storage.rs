@@ -15,6 +15,12 @@ pub enum GovernanceDataKey {
 
     Proposal(u64),
     Vote(u64, Address),
+    VotePowerSnapshot(u64, Address),
+    VoteLock(Address),
+    DelegationRecord(Address),
+    ProposalWindowStart(Address),
+    ProposalCreationCount(Address),
+    GovernanceAnalytics,
     ProposalApprovals(u64),
     UserProposals(Address, u64),
 

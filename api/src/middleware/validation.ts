@@ -82,35 +82,42 @@ export const submitValidation = [
     .notEmpty()
     .isLength({ max: MAX_XDR_LENGTH })
     .withMessage('signedXdr is required and must be <= 20000 characters'),
-  body('operation').optional().isIn(VALID_OPERATIONS).withMessage(`Operation must be one of: ${VALID_OPERATIONS.join(', ')}`),
-  body('userAddress').optional().custom((value) => {
-    if (value && !StrKey.isValidEd25519PublicKey(value)) {
-      throw new Error('Invalid Stellar address');
-    }
-    return true;
-  }),
-  body('amount').optional().custom((value) => {
-    if (!value) return true;
-    
-    const errMsg = 'Amount must be a valid positive integer';
-    try {
-      const str = String(value).trim();
-      if (!/^\+?\d+$/.test(str)) {
-        throw new Error(errMsg);
-      }
-      const amount = BigInt(str);
-      if (amount <= 0n) {
-        throw new Error(errMsg);
-      }
-      const maxI128 = (1n << 127n) - 1n;
-      if (amount > maxI128) {
-        throw new Error(errMsg);
+  body('operation')
+    .optional()
+    .isIn(VALID_OPERATIONS)
+    .withMessage(`Operation must be one of: ${VALID_OPERATIONS.join(', ')}`),
+  body('userAddress')
+    .optional()
+    .custom((value) => {
+      if (value && !StrKey.isValidEd25519PublicKey(value)) {
+        throw new Error('Invalid Stellar address');
       }
       return true;
-    } catch {
-      throw new Error(errMsg);
-    }
-  }),
+    }),
+  body('amount')
+    .optional()
+    .custom((value) => {
+      if (!value) return true;
+
+      const errMsg = 'Amount must be a valid positive integer';
+      try {
+        const str = String(value).trim();
+        if (!/^\+?\d+$/.test(str)) {
+          throw new Error(errMsg);
+        }
+        const amount = BigInt(str);
+        if (amount <= 0n) {
+          throw new Error(errMsg);
+        }
+        const maxI128 = (1n << 127n) - 1n;
+        if (amount > maxI128) {
+          throw new Error(errMsg);
+        }
+        return true;
+      } catch {
+        throw new Error(errMsg);
+      }
+    }),
   body('assetAddress')
     .optional()
     .isString()

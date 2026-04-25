@@ -74,6 +74,114 @@ impl HelloContract {
         .map_err(Into::into)
     }
 
+    pub fn gov_create_proposal(
+        env: Env,
+        proposer: Address,
+        proposal_type: types::ProposalType,
+        description: String,
+        voting_threshold: Option<i128>,
+    ) -> Result<u64, LendingError> {
+        governance::create_proposal(&env, proposer, proposal_type, description, voting_threshold)
+            .map_err(Into::into)
+    }
+
+    pub fn gov_vote(
+        env: Env,
+        voter: Address,
+        proposal_id: u64,
+        vote_type: types::VoteType,
+    ) -> Result<(), LendingError> {
+        governance::vote(&env, voter, proposal_id, vote_type).map_err(Into::into)
+    }
+
+    pub fn gov_queue_proposal(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+    ) -> Result<types::ProposalOutcome, LendingError> {
+        governance::queue_proposal(&env, caller, proposal_id).map_err(Into::into)
+    }
+
+    pub fn gov_execute_proposal(
+        env: Env,
+        executor: Address,
+        proposal_id: u64,
+    ) -> Result<(), LendingError> {
+        governance::execute_proposal(&env, executor, proposal_id).map_err(Into::into)
+    }
+
+    pub fn gov_cancel_proposal(
+        env: Env,
+        caller: Address,
+        proposal_id: u64,
+    ) -> Result<(), LendingError> {
+        governance::cancel_proposal(&env, caller, proposal_id).map_err(Into::into)
+    }
+
+    pub fn gov_approve_proposal(
+        env: Env,
+        approver: Address,
+        proposal_id: u64,
+    ) -> Result<(), LendingError> {
+        governance::approve_proposal(&env, approver, proposal_id).map_err(Into::into)
+    }
+
+    pub fn gov_add_guardian(
+        env: Env,
+        caller: Address,
+        guardian: Address,
+    ) -> Result<(), LendingError> {
+        governance::add_guardian(&env, caller, guardian).map_err(Into::into)
+    }
+
+    pub fn gov_get_guardian_config(env: Env) -> Option<storage::GuardianConfig> {
+        env.storage()
+            .instance()
+            .get(&storage::GovernanceDataKey::GuardianConfig)
+    }
+
+    pub fn gov_get_proposal(env: Env, proposal_id: u64) -> Option<types::Proposal> {
+        governance::get_proposal(&env, proposal_id)
+    }
+
+    pub fn gov_get_vote_lock(env: Env, voter: Address) -> Option<types::VoteLock> {
+        governance::get_vote_lock(&env, &voter)
+    }
+
+    pub fn gov_is_vote_locked(env: Env, voter: Address) -> bool {
+        governance::is_vote_locked(&env, &voter)
+    }
+
+    pub fn gov_get_vote_power_snapshot(
+        env: Env,
+        proposal_id: u64,
+        voter: Address,
+    ) -> Option<types::VotePowerSnapshot> {
+        governance::get_vote_power_snapshot(&env, proposal_id, &voter)
+    }
+
+    pub fn gov_delegate_vote(
+        env: Env,
+        delegator: Address,
+        delegatee: Address,
+    ) -> Result<(), LendingError> {
+        governance::delegate_vote(&env, delegator, delegatee).map_err(Into::into)
+    }
+
+    pub fn gov_get_analytics(env: Env) -> types::GovernanceAnalytics {
+        governance::get_governance_analytics(&env)
+    }
+
+    pub fn gov_create_emergency_proposal(
+        env: Env,
+        caller: Address,
+        proposal_type: types::ProposalType,
+        description: String,
+    ) -> Result<u64, LendingError> {
+        governance::create_emergency_proposal(&env, caller, proposal_type, description)
+            .map_err(Into::into)
+    }
+
     pub fn initialize(env: Env, admin: Address) -> Result<(), LendingError> {
         if crate::admin::has_admin(&env) {
             return Err(LendingError::Unauthorized);
@@ -732,6 +840,9 @@ mod cross_contract_test;
 #[cfg(test)]
 mod flash_loan_test;
 #[cfg(test)]
+#[path = "tests/governance_test.rs"]
+mod governance_test;
+#[cfg(test)]
 #[path = "tests/mev_protection_test.rs"]
 mod mev_protection_test;
 #[cfg(test)]
@@ -746,3 +857,5 @@ mod treasury_test;
 // #[cfg(test)]
 // #[path = "tests/timelock_test.rs"]
 // mod timelock_test;
+// Disabled until the full governance attack-prevention surface is implemented.
+// mod governance_attack_prevention_test;

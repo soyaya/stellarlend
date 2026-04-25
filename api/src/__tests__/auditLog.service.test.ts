@@ -33,8 +33,8 @@ describe('AuditLogService.record()', () => {
 
   it('increments sequence monotonically', () => {
     const e1 = auditLogService.record({ action: 'DEPOSIT', actor: 'A', status: 'success' });
-    const e2 = auditLogService.record({ action: 'BORROW',  actor: 'A', status: 'success' });
-    const e3 = auditLogService.record({ action: 'REPAY',   actor: 'A', status: 'success' });
+    const e2 = auditLogService.record({ action: 'BORROW', actor: 'A', status: 'success' });
+    const e3 = auditLogService.record({ action: 'REPAY', actor: 'A', status: 'success' });
 
     expect(e1.sequence).toBe(1);
     expect(e2.sequence).toBe(2);
@@ -43,7 +43,7 @@ describe('AuditLogService.record()', () => {
 
   it('chains prevHash correctly', () => {
     const e1 = auditLogService.record({ action: 'DEPOSIT', actor: 'A', status: 'success' });
-    const e2 = auditLogService.record({ action: 'BORROW',  actor: 'A', status: 'success' });
+    const e2 = auditLogService.record({ action: 'BORROW', actor: 'A', status: 'success' });
 
     expect(e1.prevHash).toBe('0');
     expect(e2.prevHash).toBe(e1.hash);
@@ -80,8 +80,8 @@ describe('AuditLogService.verify()', () => {
 
   it('returns valid: true for an intact chain', () => {
     auditLogService.record({ action: 'DEPOSIT', actor: 'A', status: 'success' });
-    auditLogService.record({ action: 'BORROW',  actor: 'A', status: 'success' });
-    auditLogService.record({ action: 'REPAY',   actor: 'A', status: 'success' });
+    auditLogService.record({ action: 'BORROW', actor: 'A', status: 'success' });
+    auditLogService.record({ action: 'REPAY', actor: 'A', status: 'success' });
 
     const result = auditLogService.verify();
     expect(result.valid).toBe(true);
@@ -90,7 +90,7 @@ describe('AuditLogService.verify()', () => {
 
   it('detects tampering', () => {
     auditLogService.record({ action: 'DEPOSIT', actor: 'A', status: 'success' });
-    auditLogService.record({ action: 'BORROW',  actor: 'A', status: 'success' });
+    auditLogService.record({ action: 'BORROW', actor: 'A', status: 'success' });
 
     // Directly mutate internal state to simulate tampering
     const entries = (auditLogService as any).entries as any[];
@@ -104,9 +104,9 @@ describe('AuditLogService.verify()', () => {
 
 describe('AuditLogService.search()', () => {
   beforeEach(() => {
-    auditLogService.record({ action: 'DEPOSIT',  actor: 'alice', status: 'success' });
-    auditLogService.record({ action: 'BORROW',   actor: 'alice', status: 'failed' });
-    auditLogService.record({ action: 'WITHDRAW', actor: 'bob',   status: 'success' });
+    auditLogService.record({ action: 'DEPOSIT', actor: 'alice', status: 'success' });
+    auditLogService.record({ action: 'BORROW', actor: 'alice', status: 'failed' });
+    auditLogService.record({ action: 'WITHDRAW', actor: 'bob', status: 'success' });
   });
 
   it('returns all entries when no filter is given', () => {
@@ -150,7 +150,7 @@ describe('AuditLogService.export()', () => {
 
   it('respects filters', () => {
     auditLogService.record({ action: 'DEPOSIT', actor: 'A', status: 'success' });
-    auditLogService.record({ action: 'BORROW',  actor: 'A', status: 'success' });
+    auditLogService.record({ action: 'BORROW', actor: 'A', status: 'success' });
     const json = auditLogService.export({ action: 'BORROW' });
     const parsed = JSON.parse(json);
     expect(parsed.length).toBe(1);

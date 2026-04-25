@@ -436,9 +436,9 @@ describe('Per-User Rate Limiting', () => {
     );
 
     const allResponses = await Promise.all([...user1Requests, ...user2Requests]);
-    
+
     // All should succeed since each user is under their 10 req/min limit
-    allResponses.forEach(res => {
+    allResponses.forEach((res) => {
       expect(res.status).toBe(200);
     });
   });
@@ -452,7 +452,7 @@ describe('Per-User Rate Limiting', () => {
     );
 
     const successfulResponses = await Promise.all(successfulRequests);
-    successfulResponses.forEach(res => {
+    successfulResponses.forEach((res) => {
       expect(res.status).toBe(200);
     });
 
@@ -464,54 +464,49 @@ describe('Per-User Rate Limiting', () => {
     expect(rateLimitedResponse.status).toBe(429);
     expect(rateLimitedResponse.body).toMatchObject({
       success: false,
-      error: 'Too many requests for this account'
+      error: 'Too many requests for this account',
     });
   });
 
   it('enforces per-user rate limit for requests with userAddress in request body', async () => {
     // Make 10 successful POST requests (at the limit)
     const successfulRequests = Array.from({ length: 10 }, () =>
-      request(app)
-        .post('/api/lending/submit')
-        .send({ 
-          signedXdr: 'signed_xdr_payload',
-          userAddress: USER_1 
-        })
+      request(app).post('/api/lending/submit').send({
+        signedXdr: 'signed_xdr_payload',
+        userAddress: USER_1,
+      })
     );
 
     const successfulResponses = await Promise.all(successfulRequests);
-    successfulResponses.forEach(res => {
+    successfulResponses.forEach((res) => {
       expect([200, 400]).toContain(res.status); // 400 if XDR is invalid, but not 429
     });
 
     // 11th request should be rate limited
-    const rateLimitedResponse = await request(app)
-      .post('/api/lending/submit')
-      .send({ 
-        signedXdr: 'signed_xdr_payload',
-        userAddress: USER_1 
-      });
+    const rateLimitedResponse = await request(app).post('/api/lending/submit').send({
+      signedXdr: 'signed_xdr_payload',
+      userAddress: USER_1,
+    });
 
     expect(rateLimitedResponse.status).toBe(429);
     expect(rateLimitedResponse.body).toMatchObject({
       success: false,
-      error: 'Too many requests for this account'
+      error: 'Too many requests for this account',
     });
   });
 
   it('falls back to IP-based limiting when userAddress is not provided', async () => {
     // Make requests without userAddress - should fall back to IP limiting
-    const requestsWithoutAddress = Array.from({ length: 5 }, () =>
-      request(app)
-        .post('/api/lending/submit')
-        .send({ signedXdr: 'signed_xdr_payload' }) // No userAddress
+    const requestsWithoutAddress = Array.from(
+      { length: 5 },
+      () => request(app).post('/api/lending/submit').send({ signedXdr: 'signed_xdr_payload' }) // No userAddress
     );
 
     const responses = await Promise.all(requestsWithoutAddress);
-    
+
     // These should be handled by the IP-based limiter
     // Since we're only making 5 requests, they should succeed
-    responses.forEach(res => {
+    responses.forEach((res) => {
       expect(res.status).toBe(200);
     });
   });
@@ -544,12 +539,10 @@ describe('Per-User Rate Limiting', () => {
 
   it('does not affect non-lending endpoints', async () => {
     // Make many requests to health endpoint - should not be affected by user rate limiting
-    const healthRequests = Array.from({ length: 15 }, () =>
-      request(app).get('/api/health')
-    );
+    const healthRequests = Array.from({ length: 15 }, () => request(app).get('/api/health'));
 
     const responses = await Promise.all(healthRequests);
-    responses.forEach(res => {
+    responses.forEach((res) => {
       expect(res.status).toBe(200);
     });
   });
@@ -563,18 +556,16 @@ describe('Per-User Rate Limiting', () => {
     );
 
     const bodyRequests = Array.from({ length: 5 }, () =>
-      request(app)
-        .post('/api/lending/submit')
-        .send({ 
-          signedXdr: 'signed_xdr_payload',
-          userAddress: USER_1 
-        })
+      request(app).post('/api/lending/submit').send({
+        signedXdr: 'signed_xdr_payload',
+        userAddress: USER_1,
+      })
     );
 
     const allResponses = await Promise.all([...queryRequests, ...bodyRequests]);
-    
+
     // All should succeed since they're from the same user but under the limit
-    allResponses.forEach(res => {
+    allResponses.forEach((res) => {
       expect([200, 400]).toContain(res.status); // 400 for invalid XDR, but not 429
     });
 
@@ -592,21 +583,21 @@ describe('IP-based Rate Limiting (Outer Layer)', () => {
   it('still applies to all API endpoints', async () => {
     // This test verifies that the original IP-based limiter still works
     // We'll make requests to different endpoints to ensure the outer layer is active
-    
+
     const requests = Array.from({ length: 105 }, () =>
       Promise.race([
         request(app).get('/api/health'),
-        request(app).get('/api/lending/prepare/deposit').query({ 
-          userAddress: VALID_ADDRESS, 
-          amount: VALID_AMOUNT 
+        request(app).get('/api/lending/prepare/deposit').query({
+          userAddress: VALID_ADDRESS,
+          amount: VALID_AMOUNT,
         }),
-        request(app).get('/api/openapi.json')
+        request(app).get('/api/openapi.json'),
       ])
     );
 
     const responses = await Promise.all(requests);
     const statuses = responses.map((r: { status: number }) => r.status);
-    
+
     // Should have some successful requests
     expect(statuses.some((s: number) => s === 200)).toBe(true);
     // Should have some rate limited requests (429)

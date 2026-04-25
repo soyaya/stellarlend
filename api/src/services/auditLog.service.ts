@@ -60,23 +60,19 @@ class AuditLogService {
   private entries: AuditLogEntry[] = [];
   private sequence = 0;
 
-  record(
-    params: {
-      action: AuditLogEntry['action'];
-      actor: string;
-      status: AuditLogEntry['status'];
-      txHash?: string;
-      ledger?: number;
-      amount?: string;
-      assetAddress?: string;
-      ip?: string;
-      beforeState?: Record<string, unknown>;
-      afterState?: Record<string, unknown>;
-    }
-  ): AuditLogEntry {
-    const prevHash = this.entries.length > 0
-      ? this.entries[this.entries.length - 1].hash
-      : '0';
+  record(params: {
+    action: AuditLogEntry['action'];
+    actor: string;
+    status: AuditLogEntry['status'];
+    txHash?: string;
+    ledger?: number;
+    amount?: string;
+    assetAddress?: string;
+    ip?: string;
+    beforeState?: Record<string, unknown>;
+    afterState?: Record<string, unknown>;
+  }): AuditLogEntry {
+    const prevHash = this.entries.length > 0 ? this.entries[this.entries.length - 1].hash : '0';
 
     const seq = ++this.sequence;
     const entry: Omit<AuditLogEntry, 'hash'> = {

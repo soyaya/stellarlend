@@ -37,9 +37,7 @@ export function parsePaginationParams(rawQuery: Record<string, any> = {}): Pagin
   const defaultLimit = Number.isFinite(config.pagination.defaultLimit)
     ? config.pagination.defaultLimit
     : 10;
-  const maxLimit = Number.isFinite(config.pagination.maxLimit)
-    ? config.pagination.maxLimit
-    : 100;
+  const maxLimit = Number.isFinite(config.pagination.maxLimit) ? config.pagination.maxLimit : 100;
 
   let limit = defaultLimit;
   if (limitFromQuery !== undefined) {

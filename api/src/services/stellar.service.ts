@@ -184,7 +184,12 @@ export class StellarService {
     assetAddress: string | undefined,
     amount: string
   ): Promise<{ cpuInstructions: string; memoryBytes: string; minResourceFee: string }> {
-    const coalescingKey = requestCoalescingService.generateKey('estimateGas', { operation, userAddress, assetAddress, amount });
+    const coalescingKey = requestCoalescingService.generateKey('estimateGas', {
+      operation,
+      userAddress,
+      assetAddress,
+      amount,
+    });
     return requestCoalescingService.execute(coalescingKey, async () => {
       try {
         const account = await this.getAccount(userAddress);
@@ -205,7 +210,7 @@ export class StellarService {
           .build();
 
         const simulation = await (this.sorobanServer as any).simulateTransaction(tx);
-        
+
         if (simulation.error) {
           throw new InternalServerError(`Simulation failed: ${simulation.error}`);
         }
@@ -502,7 +507,11 @@ export class StellarService {
 
         const result = {
           data: lendingTransactions,
-          pagination: buildPaginationMeta(nextCursor, hasNextPage, limit ?? config.pagination.defaultLimit),
+          pagination: buildPaginationMeta(
+            nextCursor,
+            hasNextPage,
+            limit ?? config.pagination.defaultLimit
+          ),
         };
         await redisCacheService.set(
           historyCacheKey,
@@ -676,9 +685,7 @@ export class StellarService {
         const userParam = new Address(userAddress).toScVal();
         const raw = await this.simulateContractCall('get_user_position', userParam);
 
-        const collateral = toIntegerString(
-          raw?.collateral ?? raw?.collateral_amount ?? 0
-        );
+        const collateral = toIntegerString(raw?.collateral ?? raw?.collateral_amount ?? 0);
         const debt = toIntegerString(raw?.debt ?? raw?.debt_amount ?? 0);
         const borrowInterest = toIntegerString(raw?.borrow_interest ?? raw?.interest ?? 0);
         const lastAccrualTime = toSafeNumber(raw?.last_accrual_time ?? raw?.lastAccrualTime ?? 0);
@@ -686,9 +693,7 @@ export class StellarService {
         const collateralBig = BigInt(collateral);
         const debtBig = BigInt(debt);
         const collateralRatio =
-          debtBig > 0n
-            ? ((collateralBig * 10000n) / debtBig).toString()
-            : 'Infinity';
+          debtBig > 0n ? ((collateralBig * 10000n) / debtBig).toString() : 'Infinity';
 
         const result: PositionResponse = {
           userAddress,
@@ -699,7 +704,11 @@ export class StellarService {
           collateralRatio,
         };
 
-        await redisCacheService.set(cacheKey, result, Math.floor(config.cache.positionTtlMs / 1000));
+        await redisCacheService.set(
+          cacheKey,
+          result,
+          Math.floor(config.cache.positionTtlMs / 1000)
+        );
         return result;
       } catch (error) {
         logger.error('Failed to fetch user position:', error);

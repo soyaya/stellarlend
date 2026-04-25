@@ -82,7 +82,11 @@ router.get('/:userAddress/risk', portfolioController.getPortfolioRisk);
  *           maximum: 200
  *           default: 200
  */
-router.get('/:userAddress/performance', paginationValidation, portfolioController.getPortfolioPerformance);
+router.get(
+  '/:userAddress/performance',
+  paginationValidation,
+  portfolioController.getPortfolioPerformance
+);
 
 /**
  * @openapi

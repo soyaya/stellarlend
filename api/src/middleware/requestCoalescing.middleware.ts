@@ -21,12 +21,7 @@ export interface CoalescingMiddlewareOptions {
  * @returns Express middleware function
  */
 export function withRequestCoalescing(options: CoalescingMiddlewareOptions = {}) {
-  const {
-    keyGenerator,
-    enabled = true,
-    maxWaitMs,
-    gracePeriodMs,
-  } = options;
+  const { keyGenerator, enabled = true, maxWaitMs, gracePeriodMs } = options;
 
   return (req: Request, res: Response, next: NextFunction) => {
     if (!enabled) {
@@ -34,9 +29,7 @@ export function withRequestCoalescing(options: CoalescingMiddlewareOptions = {})
     }
 
     // Generate coalescing key
-    const key = keyGenerator
-      ? keyGenerator(req)
-      : generateDefaultKey(req);
+    const key = keyGenerator ? keyGenerator(req) : generateDefaultKey(req);
 
     // Store original send method
     const originalSend = res.send;
@@ -59,11 +52,11 @@ export function withRequestCoalescing(options: CoalescingMiddlewareOptions = {})
       throw error;
     };
 
-    res.send = function(data: any) {
+    res.send = function (data: any) {
       return originalSend.call(this, captureResult(data));
     };
 
-    res.json = function(data: any) {
+    res.json = function (data: any) {
       return originalJson.call(this, captureResult(data));
     };
 
@@ -98,7 +91,7 @@ export function withRequestCoalescing(options: CoalescingMiddlewareOptions = {})
         let attempts = 0;
         const maxAttempts = 50; // 5 seconds max wait
         while (!isCompleted && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
           attempts++;
         }
 
@@ -119,7 +112,7 @@ export function withRequestCoalescing(options: CoalescingMiddlewareOptions = {})
 
     // Handle the coalesced response
     coalescingPromise
-      .then(result => {
+      .then((result) => {
         if (!res.headersSent) {
           if (typeof result === 'string') {
             res.send(result);
@@ -128,7 +121,7 @@ export function withRequestCoalescing(options: CoalescingMiddlewareOptions = {})
           }
         }
       })
-      .catch(error => {
+      .catch((error) => {
         if (!res.headersSent) {
           logger.error('Coalesced request failed:', error);
           if (!res.statusCode || res.statusCode === 200) {
@@ -202,31 +195,27 @@ export function createCoalescingMiddleware(
  */
 export const coalescingMiddleware = {
   // For protocol stats (no parameters)
-  protocolStats: createCoalescingMiddleware(
-    (req) => requestCoalescingService.generateKey('protocolStats', {})
+  protocolStats: createCoalescingMiddleware((req) =>
+    requestCoalescingService.generateKey('protocolStats', {})
   ),
 
   // For user-specific data
-  userData: createCoalescingMiddleware(
-    (req) => {
-      const userId = req.params.userId || req.query.userAddress || req.body.userAddress;
-      return requestCoalescingService.generateKey('userData', { userId });
-    }
-  ),
+  userData: createCoalescingMiddleware((req) => {
+    const userId = req.params.userId || req.query.userAddress || req.body.userAddress;
+    return requestCoalescingService.generateKey('userData', { userId });
+  }),
 
   // For paginated data
-  paginatedData: createCoalescingMiddleware(
-    (req) => {
-      const { limit, cursor, offset } = req.query;
-      const params = req.params;
-      return requestCoalescingService.generateKey('paginatedData', {
-        ...params,
-        limit,
-        cursor,
-        offset,
-      });
-    }
-  ),
+  paginatedData: createCoalescingMiddleware((req) => {
+    const { limit, cursor, offset } = req.query;
+    const params = req.params;
+    return requestCoalescingService.generateKey('paginatedData', {
+      ...params,
+      limit,
+      cursor,
+      offset,
+    });
+  }),
 
   // Generic coalescing (uses default key generation)
   generic: createCoalescingMiddleware(),

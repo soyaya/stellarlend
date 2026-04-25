@@ -1,4 +1,9 @@
-import { encodeCursor, decodeCursor, parsePaginationParams, buildPaginationMeta } from '../utils/pagination';
+import {
+  encodeCursor,
+  decodeCursor,
+  parsePaginationParams,
+  buildPaginationMeta,
+} from '../utils/pagination';
 import { ValidationError } from '../utils/errors';
 
 describe('encodeCursor / decodeCursor', () => {
@@ -70,7 +75,9 @@ describe('parsePaginationParams', () => {
   });
 
   it('throws ValidationError for a malformed cursor', () => {
-    expect(() => parsePaginationParams({ cursor: 'this-is-not-base64url!!!' })).toThrow(ValidationError);
+    expect(() => parsePaginationParams({ cursor: 'this-is-not-base64url!!!' })).toThrow(
+      ValidationError
+    );
   });
 });
 

@@ -5,7 +5,6 @@
 
 use crate::config::BlockchainConfig;
 use crate::error::{BlockchainError, Result, RetryContext};
-use backoff::{backoff::Backoff, ExponentialBackoff, ExponentialBackoffBuilder};
 use std::future::Future;
 use std::time::Duration;
 use tracing::{debug, warn};
@@ -34,14 +33,16 @@ impl RetryStrategy {
         }
     }
 
-    /// Create an exponential backoff instance
-    fn create_backoff(&self) -> ExponentialBackoff {
-        ExponentialBackoffBuilder::new()
-            .with_initial_interval(self.initial_delay)
-            .with_max_interval(self.max_delay)
-            .with_multiplier(self.multiplier)
-            .with_max_elapsed_time(None)
-            .build()
+    /// Compute the delay before the next retry attempt.
+    fn delay_for_retry(&self, retry_number: usize) -> Duration {
+        let max_delay_ms = self.max_delay.as_millis() as f64;
+        let mut delay_ms = self.initial_delay.as_millis() as f64;
+
+        for _ in 1..retry_number {
+            delay_ms = (delay_ms * self.multiplier).min(max_delay_ms);
+        }
+
+        Duration::from_millis(delay_ms.min(max_delay_ms).max(0.0) as u64)
     }
 
     /// Check if an error is retryable
@@ -74,7 +75,6 @@ impl RetryStrategy {
         F: Fn() -> Fut,
         Fut: Future<Output = Result<T>>,
     {
-        let mut backoff = self.create_backoff();
         let mut retry_ctx = RetryContext::new();
         let mut attempts = 0;
 
@@ -105,14 +105,7 @@ impl RetryStrategy {
                         return Err(BlockchainError::MaxRetriesExceeded(self.max_retries));
                     }
 
-                    // Get next backoff duration
-                    let delay = match backoff.next_backoff() {
-                        Some(d) => d,
-                        None => {
-                            warn!("Backoff exhausted");
-                            return Err(BlockchainError::MaxRetriesExceeded(self.max_retries));
-                        }
-                    };
+                    let delay = self.delay_for_retry(attempts);
 
                     // Record the attempt
                     retry_ctx.record_attempt(&error.to_string(), delay.as_millis() as u64);
@@ -140,7 +133,6 @@ impl RetryStrategy {
         Fut: Future<Output = Result<T>>,
         P: Fn(&BlockchainError) -> bool,
     {
-        let mut backoff = self.create_backoff();
         let mut attempts = 0;
 
         loop {
@@ -170,14 +162,7 @@ impl RetryStrategy {
                         return Err(BlockchainError::MaxRetriesExceeded(self.max_retries));
                     }
 
-                    // Get next backoff duration
-                    let delay = match backoff.next_backoff() {
-                        Some(d) => d,
-                        None => {
-                            warn!("Backoff exhausted");
-                            return Err(BlockchainError::MaxRetriesExceeded(self.max_retries));
-                        }
-                    };
+                    let delay = self.delay_for_retry(attempts);
 
                     warn!(
                         "Attempt {} failed: {:?}. Retrying in {:?}",

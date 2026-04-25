@@ -248,6 +248,51 @@ pub struct VoteCastEvent {
 
 #[contractevent]
 #[derive(Clone, Debug)]
+pub struct VotePowerSnapshotTakenEvent {
+    pub proposal_id: u64,
+    pub voter: Address,
+    pub balance: i128,
+    pub snapshot_time: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct VoteLockedEvent {
+    pub voter: Address,
+    pub proposal_id: u64,
+    pub locked_amount: i128,
+    pub locked_until: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct VoteDelegatedEvent {
+    pub delegator: Address,
+    pub delegatee: Address,
+    pub delegated_at: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct VoteDelegationRevokedEvent {
+    pub delegator: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct SuspiciousGovActivityEvent {
+    pub proposal_id: u64,
+    pub voter: Address,
+    pub voter_power: i128,
+    pub total_supply_estimate: i128,
+    pub reason: Symbol,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
 pub struct ProposalQueuedEvent {
     pub proposal_id: u64,
     pub execution_time: u64,

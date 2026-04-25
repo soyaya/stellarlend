@@ -81,11 +81,13 @@ const userRateLimiter = rateLimit({
 let swaggerUiLoaded = false;
 app.use('/api/docs', (req: Request, res: Response, next: NextFunction) => {
   if (swaggerUiLoaded) return next();
-  import('swagger-ui-express').then((swaggerUi) => {
-    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-    swaggerUiLoaded = true;
-    next();
-  }).catch(next);
+  import('swagger-ui-express')
+    .then((swaggerUi) => {
+      app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+      swaggerUiLoaded = true;
+      next();
+    })
+    .catch(next);
 });
 
 app.get('/api/openapi.json', (_req, res) => {

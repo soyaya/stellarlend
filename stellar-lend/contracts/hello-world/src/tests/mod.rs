@@ -36,3 +36,6 @@ pub mod cross_contract_test;
 // Temporarily disabled due to pre-existing issues (not related to governance attack prevention)
 // pub mod timelock_test;
 pub mod input_length_test;
+pub mod governance_test;
+// Disabled until the full governance attack-prevention surface is implemented.
+// pub mod governance_attack_prevention_test;

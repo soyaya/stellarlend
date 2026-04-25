@@ -275,10 +275,11 @@ export class ContractUpdater {
         result.admin = true;
         result.details.admin = {
           exists: true,
-          balance: adminAccount.balances
-            .filter((balance: any) => balance.asset_type === 'native')
-            .map((balance: any) => balance.balance)
-            .join('') || '0',
+          balance:
+            adminAccount.balances
+              .filter((balance: any) => balance.asset_type === 'native')
+              .map((balance: any) => balance.balance)
+              .join('') || '0',
         };
       } catch (error) {
         result.details.admin = {

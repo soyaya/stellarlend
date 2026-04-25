@@ -11,32 +11,30 @@ use crate::shared_types::{
 };
 
 #[contract]
-struct TestContract;
+struct CommonTestContract;
 
 #[contractimpl]
-impl TestContract {}
+impl CommonTestContract {
+    pub fn ping() {}
+}
 
-fn setup() -> (Env, Address, Address, Address) {
+fn setup() -> (Env, Address, Address, Address, Address) {
     let env = Env::default();
     env.mock_all_auths();
+    let contract = env.register(CommonTestContract, ());
     let source = Address::generate(&env);
     let target = Address::generate(&env);
     let user = Address::generate(&env);
-    (env, source, target, user)
-}
-
-fn with_contract<T>(env: &Env, f: impl FnOnce() -> T) -> T {
-    let contract = env.register_contract(None, TestContract);
-    env.as_contract(&contract, f)
+    (env, contract, source, target, user)
 }
 
 #[test]
 fn cross_contract_message_flow_with_retry_and_confirm() {
-    let (env, source, target, _) = setup();
-    with_contract(&env, || {
-        let kind = symbol_short!("borrow");
-        let hash = symbol_short!("hash001");
+    let (env, contract, source, target, _) = setup();
+    let kind = symbol_short!("borrow");
+    let hash = symbol_short!("hash001");
 
+    env.as_contract(&contract, || {
         let id = message_bus::publish(&env, source, target, kind, hash, SHARED_TYPES_VERSION_V1);
         let first = message_bus::dequeue_next(&env).unwrap();
         assert_eq!(first.id, id);
@@ -56,8 +54,9 @@ fn cross_contract_message_flow_with_retry_and_confirm() {
 
 #[test]
 fn replay_protection_rejects_duplicate_confirmation() {
-    let (env, source, target, _) = setup();
-    with_contract(&env, || {
+    let (env, contract, source, target, _) = setup();
+
+    env.as_contract(&contract, || {
         let id = message_bus::publish(
             &env,
             source,
@@ -75,9 +74,10 @@ fn replay_protection_rejects_duplicate_confirmation() {
 
 #[test]
 fn cache_ttl_and_metrics_work_for_health_factor() {
-    let (env, _, _, _) = setup();
-    with_contract(&env, || {
-        let health_key: Symbol = symbol_short!("health");
+    let (env, contract, _, _, _) = setup();
+    let health_key: Symbol = symbol_short!("health");
+
+    env.as_contract(&contract, || {
         cache::set_cached(&env, health_key, 12_345, Some(15)).unwrap();
 
         let first = cache::get_cached(&env, symbol_short!("health"));
@@ -94,7 +94,7 @@ fn cache_ttl_and_metrics_work_for_health_factor() {
 
 #[test]
 fn shared_types_are_versioned_and_reusable() {
-    let (env, _, _, user) = setup();
+    let (env, _, _, _, user) = setup();
     let token = Address::generate(&env);
 
     let config = AssetConfigV1 {

@@ -221,10 +221,12 @@ pub struct UpgradeRollbackEvent {
     pub prev_version: u32,
 }
 
+#[allow(deprecated)]
 pub fn emit_bad_debt(env: &Env, user: &Address, amount: i128) {
     env.events().publish(("bad_debt",), (user.clone(), amount));
 }
 
+#[allow(deprecated)]
 pub fn emit_bad_debt_recovered(env: &Env, amount: i128) {
     env.events().publish(("bad_debt_recovered",), (amount,));
 }

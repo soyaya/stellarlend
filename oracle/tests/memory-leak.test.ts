@@ -123,9 +123,11 @@ describe('OracleService Memory Leak Detection', () => {
     const memoryIncrease = finalMemory - initialMemory;
     const memoryIncreasePercent = (memoryIncrease / initialMemory) * 100;
 
-    console.log(`Memory increase: ${(memoryIncrease / 1024 / 1024).toFixed(2)} MB (${memoryIncreasePercent.toFixed(2)}%)`);
+    console.log(
+      `Memory increase: ${(memoryIncrease / 1024 / 1024).toFixed(2)} MB (${memoryIncreasePercent.toFixed(2)}%)`
+    );
 
-    // A leak would typically show much larger growth. 
+    // A leak would typically show much larger growth.
     // We allow for some growth due to Node.js's lazy garbage collection,
     // but anything over 50% increase in 2000 iterations of mocked work is suspicious.
     // Ideally it should be very close to 0 or even negative if GC kicks in.

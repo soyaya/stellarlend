@@ -9,13 +9,31 @@
 //! - Cold vs warm storage access patterns
 
 use crate::framework::{
-    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite,
-    RunConfig,
+    fresh_env, get_budget, measure_instructions, BenchmarkResult, BenchmarkSuite, RunConfig,
 };
-use soroban_sdk::{testutils::Address as _, Address, Bytes, Env};
-use stellarlend_lending::{LendingContract, LendingContractClient};
+use soroban_sdk::{contract, contractimpl, testutils::Address as _, token, Address, Bytes, Env};
+use stellarlend_lending::{LendingContract, LendingContractClient, PauseType};
 
 const CONTRACT: &str = "lending";
+
+#[contract]
+pub struct BenchmarkFlashLoanReceiver;
+
+#[contractimpl]
+impl BenchmarkFlashLoanReceiver {
+    pub fn on_flash_loan(
+        env: Env,
+        initiator: Address,
+        asset: Address,
+        amount: i128,
+        fee: i128,
+        _params: Bytes,
+    ) -> bool {
+        let token_client = token::Client::new(&env, &asset);
+        token_client.transfer(&env.current_contract_address(), &initiator, &(amount + fee));
+        true
+    }
+}
 
 /// Register all lending benchmarks into the suite
 pub fn register(suite: &mut BenchmarkSuite) {
@@ -23,32 +41,30 @@ pub fn register(suite: &mut BenchmarkSuite) {
 }
 
 fn run_all(config: &RunConfig) -> Vec<BenchmarkResult> {
-    let mut results = Vec::new();
-
-    results.push(bench_initialize(config));
-    results.push(bench_initialize_deposit_settings(config));
-    results.push(bench_deposit_cold(config));
-    results.push(bench_deposit_warm(config));
-    results.push(bench_deposit_collateral_cold(config));
-    results.push(bench_deposit_collateral_warm(config));
-    results.push(bench_borrow_cold(config));
-    results.push(bench_repay_cold(config));
-    results.push(bench_repay_warm(config));
-    results.push(bench_withdraw_cold(config));
-    results.push(bench_withdraw_warm(config));
-    results.push(bench_liquidate(config));
-    results.push(bench_flash_loan(config));
-    results.push(bench_get_health_factor(config));
-    results.push(bench_get_user_position(config));
-    results.push(bench_get_user_debt(config));
-    results.push(bench_get_collateral_balance(config));
-    results.push(bench_set_oracle(config));
-    results.push(bench_set_pause(config));
-    results.push(bench_set_flash_loan_fee(config));
-    results.push(bench_set_liquidation_threshold(config));
-    results.push(bench_deposit_multiple_assets_storage(config));
-
-    results
+    vec![
+        bench_initialize(config),
+        bench_initialize_deposit_settings(config),
+        bench_deposit_cold(config),
+        bench_deposit_warm(config),
+        bench_deposit_collateral_cold(config),
+        bench_deposit_collateral_warm(config),
+        bench_borrow_cold(config),
+        bench_repay_cold(config),
+        bench_repay_warm(config),
+        bench_withdraw_cold(config),
+        bench_withdraw_warm(config),
+        bench_liquidate(config),
+        bench_flash_loan(config),
+        bench_get_health_factor(config),
+        bench_get_user_position(config),
+        bench_get_user_debt(config),
+        bench_get_collateral_balance(config),
+        bench_set_oracle(config),
+        bench_set_pause(config),
+        bench_set_flash_loan_fee(config),
+        bench_set_liquidation_threshold(config),
+        bench_deposit_multiple_assets_storage(config),
+    ]
 }
 
 // ─── Setup helpers ────────────────────────────────────────────────────────────
@@ -78,6 +94,14 @@ fn setup_with_borrow(env: &Env) -> (LendingContractClient<'static>, Address, Add
 
 // ─── Initialize ───────────────────────────────────────────────────────────────
 
+fn setup_admin_initialized(env: &Env) -> (LendingContractClient<'static>, Address) {
+    let contract_id = env.register(LendingContract, ());
+    let client = LendingContractClient::new(env, &contract_id);
+    let admin = Address::generate(env);
+    client.initialize(&admin, &1_000_000_000, &100);
+    (client, admin)
+}
+
 fn bench_initialize(config: &RunConfig) -> BenchmarkResult {
     let op = "lending::initialize";
     let env = fresh_env();
@@ -90,9 +114,14 @@ fn bench_initialize(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Initialize lending contract with admin, debt ceiling, min borrow",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "init".into()],
     )
@@ -109,9 +138,14 @@ fn bench_initialize_deposit_settings(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Initialize deposit settings (cap + min amount)",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "settings".into()],
     )
@@ -129,9 +163,14 @@ fn bench_deposit_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit asset — first deposit (cold storage write)",
-        insns, mem, 1, 2, true,
+        insns,
+        mem,
+        1,
+        2,
+        true,
         get_budget(config, op),
         vec!["deposit".into(), "cold".into()],
     )
@@ -143,15 +182,20 @@ fn bench_deposit_warm(config: &RunConfig) -> BenchmarkResult {
     let env = fresh_env();
     let (client, user, asset) = setup_initialized(&env);
     client.deposit(&user, &asset, &10_000); // first deposit — warms storage
-    // Reset budget, then measure the second deposit (warm path)
+                                            // Reset budget, then measure the second deposit (warm path)
     let (insns, mem) = measure_instructions(&env, || {
         client.deposit(&user, &asset, &5_000);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit asset — subsequent deposit (warm storage update)",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "lending::deposit"),
         vec!["deposit".into(), "warm".into()],
     )
@@ -168,9 +212,14 @@ fn bench_deposit_collateral_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit collateral — first deposit (cold storage write)",
-        insns, mem, 1, 2, true,
+        insns,
+        mem,
+        1,
+        2,
+        true,
         get_budget(config, op),
         vec!["collateral".into(), "cold".into()],
     )
@@ -187,9 +236,14 @@ fn bench_deposit_collateral_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit collateral — subsequent deposit (warm storage update)",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "lending::deposit_collateral"),
         vec!["collateral".into(), "warm".into()],
     )
@@ -209,9 +263,14 @@ fn bench_borrow_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Borrow asset — first borrow (cold: collateral check + debt write)",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["borrow".into(), "cold".into()],
     )
@@ -229,9 +288,14 @@ fn bench_repay_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Repay debt — partial repayment (cold: debt read + write)",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["repay".into(), "cold".into()],
     )
@@ -247,9 +311,14 @@ fn bench_repay_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Repay debt — subsequent repayment (warm storage)",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "lending::repay"),
         vec!["repay".into(), "warm".into()],
     )
@@ -268,9 +337,14 @@ fn bench_withdraw_cold(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Withdraw deposited asset — cold storage read + write",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["withdraw".into(), "cold".into()],
     )
@@ -287,9 +361,14 @@ fn bench_withdraw_warm(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Withdraw deposited asset — warm storage",
-        insns, mem, 1, 1, false,
+        insns,
+        mem,
+        1,
+        1,
+        false,
         get_budget(config, "lending::withdraw"),
         vec!["withdraw".into(), "warm".into()],
     )
@@ -309,9 +388,14 @@ fn bench_liquidate(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Liquidate undercollateralized position (health factor check + state update)",
-        insns, mem, 3, 3, true,
+        insns,
+        mem,
+        3,
+        3,
+        true,
         get_budget(config, op),
         vec!["liquidate".into(), "cold".into()],
     )
@@ -322,19 +406,34 @@ fn bench_liquidate(config: &RunConfig) -> BenchmarkResult {
 fn bench_flash_loan(config: &RunConfig) -> BenchmarkResult {
     let op = "lending::flash_loan";
     let env = fresh_env();
-    let (client, _user, asset) = setup_with_deposit(&env);
+    let contract_id = env.register(LendingContract, ());
+    let client = LendingContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let asset = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+    let token_admin = token::StellarAssetClient::new(&env, &asset);
+    let receiver = env.register(BenchmarkFlashLoanReceiver, ());
+
+    client.initialize(&admin, &1_000_000_000, &100);
     client.set_flash_loan_fee_bps(&50);
-    let receiver = Address::generate(&env);
+    token_admin.mint(&contract_id, &100_000);
+    token_admin.mint(&receiver, &1_000);
     let params = Bytes::new(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        let _ = client.try_flash_loan(&receiver, &asset, &1_000, &params);
+        client.flash_loan(&receiver, &asset, &1_000, &params);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Flash loan — borrow + fee calculation + repayment check",
-        insns, mem, 2, 2, true,
+        insns,
+        mem,
+        2,
+        2,
+        true,
         get_budget(config, op),
         vec!["flash_loan".into(), "cold".into()],
     )
@@ -352,9 +451,14 @@ fn bench_get_health_factor(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get health factor — reads collateral + debt positions",
-        insns, mem, 2, 0, false,
+        insns,
+        mem,
+        2,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "health_factor".into()],
     )
@@ -370,9 +474,14 @@ fn bench_get_user_position(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get full user position summary — multi-storage read",
-        insns, mem, 3, 0, false,
+        insns,
+        mem,
+        3,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "position".into()],
     )
@@ -388,9 +497,14 @@ fn bench_get_user_debt(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get user debt position",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "debt".into()],
     )
@@ -406,9 +520,14 @@ fn bench_get_collateral_balance(config: &RunConfig) -> BenchmarkResult {
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Get collateral balance — single storage read",
-        insns, mem, 1, 0, false,
+        insns,
+        mem,
+        1,
+        0,
+        false,
         get_budget(config, op),
         vec!["query".into(), "collateral".into()],
     )
@@ -419,18 +538,22 @@ fn bench_get_collateral_balance(config: &RunConfig) -> BenchmarkResult {
 fn bench_set_oracle(config: &RunConfig) -> BenchmarkResult {
     let op = "lending::set_oracle";
     let env = fresh_env();
-    let (client, _, _) = setup_initialized(&env);
-    let admin = Address::generate(&env);
+    let (client, admin) = setup_admin_initialized(&env);
     let oracle = Address::generate(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        let _ = client.try_set_oracle(&admin, &oracle);
+        client.set_oracle(&admin, &oracle);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set oracle address — admin auth + storage write",
-        insns, mem, 1, 1, true,
+        insns,
+        mem,
+        1,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "oracle".into()],
     )
@@ -439,17 +562,21 @@ fn bench_set_oracle(config: &RunConfig) -> BenchmarkResult {
 fn bench_set_pause(config: &RunConfig) -> BenchmarkResult {
     let op = "lending::set_pause";
     let env = fresh_env();
-    let (client, _, _) = setup_initialized(&env);
+    let (client, admin) = setup_admin_initialized(&env);
 
-    // set_deposit_paused is a simpler pause setter that doesn't require PauseType
     let (insns, mem) = measure_instructions(&env, || {
-        let _ = client.try_set_deposit_paused(&true);
+        client.set_pause(&admin, &PauseType::Deposit, &true);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set protocol pause — single storage write",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "pause".into()],
     )
@@ -458,16 +585,21 @@ fn bench_set_pause(config: &RunConfig) -> BenchmarkResult {
 fn bench_set_flash_loan_fee(config: &RunConfig) -> BenchmarkResult {
     let op = "lending::set_flash_loan_fee_bps";
     let env = fresh_env();
-    let (client, _, _) = setup_initialized(&env);
+    let (client, _) = setup_admin_initialized(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        let _ = client.try_set_flash_loan_fee_bps(&100);
+        client.set_flash_loan_fee_bps(&100);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set flash loan fee in basis points",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "flash_loan".into()],
     )
@@ -476,19 +608,21 @@ fn bench_set_flash_loan_fee(config: &RunConfig) -> BenchmarkResult {
 fn bench_set_liquidation_threshold(config: &RunConfig) -> BenchmarkResult {
     let op = "lending::set_liquidation_threshold_bps";
     let env = fresh_env();
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-    let admin = Address::generate(&env);
-    let _ = client.try_initialize(&admin, &1_000_000_000, &100);
+    let (client, admin) = setup_admin_initialized(&env);
 
     let (insns, mem) = measure_instructions(&env, || {
-        let _ = client.try_set_liquidation_threshold_bps(&admin, &8000);
+        client.set_liquidation_threshold_bps(&admin, &8000);
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Set liquidation threshold in basis points",
-        insns, mem, 0, 1, true,
+        insns,
+        mem,
+        0,
+        1,
+        true,
         get_budget(config, op),
         vec!["admin".into(), "liquidation".into()],
     )
@@ -515,10 +649,19 @@ fn bench_deposit_multiple_assets_storage(config: &RunConfig) -> BenchmarkResult 
     });
 
     BenchmarkResult::new(
-        op, CONTRACT,
+        op,
+        CONTRACT,
         "Deposit with 5 existing assets — storage write pattern with populated state",
-        insns, mem, 1, 2, false,
+        insns,
+        mem,
+        1,
+        2,
+        false,
         get_budget(config, "lending::deposit"),
-        vec!["deposit".into(), "storage_pattern".into(), "multi_asset".into()],
+        vec![
+            "deposit".into(),
+            "storage_pattern".into(),
+            "multi_asset".into(),
+        ],
     )
 }

@@ -44,9 +44,11 @@ describe('RequestCoalescingService', () => {
     });
 
     it('should timeout if operation takes too long', async () => {
-      const mockOperation = jest.fn().mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve('result'), 100))
-      );
+      const mockOperation = jest
+        .fn()
+        .mockImplementation(
+          () => new Promise((resolve) => setTimeout(() => resolve('result'), 100))
+        );
 
       service = new RequestCoalescingService({ gracePeriodMs: 0, maxWaitMs: 50 });
 

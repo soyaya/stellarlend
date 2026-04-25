@@ -351,7 +351,6 @@ pub fn get_protocol_report(env: &Env, stablecoin_assets: Vec<Address>) -> Protoc
     let mut stablecoin_stats = Vec::new(env);
     if let Some(oracle) = get_oracle(env) {
         for asset in stablecoin_assets.iter() {
-            if let Some(config) = crate::borrow::get_stablecoin_config(env, &asset) {
             if let Some(config) = get_stablecoin_config(env, &asset) {
                 let price = env.invoke_contract::<i128>(
                     &oracle,

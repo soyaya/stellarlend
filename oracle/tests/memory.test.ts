@@ -13,9 +13,9 @@ import type { OracleServiceConfig } from '../src/config.js';
 
 vi.mock('../src/services/contract-updater.js', () => ({
   createContractUpdater: vi.fn(() => ({
-    updatePrices: vi.fn().mockResolvedValue([
-      { success: true, asset: 'XLM', price: 150000n, timestamp: Date.now() },
-    ]),
+    updatePrices: vi
+      .fn()
+      .mockResolvedValue([{ success: true, asset: 'XLM', price: 150000n, timestamp: Date.now() }]),
     healthCheck: vi.fn().mockResolvedValue(true),
     getAdminPublicKey: vi.fn().mockReturnValue('GTEST123'),
   })),

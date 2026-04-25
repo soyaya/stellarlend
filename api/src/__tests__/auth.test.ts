@@ -8,9 +8,9 @@ jest.mock('../config', () => ({
   config: {
     auth: {
       jwtSecret: 'test-secret-key-for-testing',
-      jwtExpiresIn: '1h'
-    }
-  }
+      jwtExpiresIn: '1h',
+    },
+  },
 }));
 
 describe('Auth Middleware', () => {
@@ -28,7 +28,10 @@ describe('Auth Middleware', () => {
 
   describe('authenticateToken', () => {
     it('should pass through with valid token', () => {
-      const validToken = jwt.sign({ address: '0x1234567890123456789012345678901234567890' }, 'test-secret-key-for-testing');
+      const validToken = jwt.sign(
+        { address: '0x1234567890123456789012345678901234567890' },
+        'test-secret-key-for-testing'
+      );
       mockRequest.headers = {
         authorization: `Bearer ${validToken}`,
       };
@@ -36,7 +39,9 @@ describe('Auth Middleware', () => {
       authenticateToken(mockRequest as AuthRequest, mockResponse as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith();
-      expect(mockRequest.user).toMatchObject({ address: '0x1234567890123456789012345678901234567890' });
+      expect(mockRequest.user).toMatchObject({
+        address: '0x1234567890123456789012345678901234567890',
+      });
     });
 
     it('should return 401 when token is missing', () => {

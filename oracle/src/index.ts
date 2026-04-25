@@ -29,13 +29,15 @@ import type { ProviderConfig } from './types/index.js';
  */
 const DEFAULT_ASSETS = ['XLM', 'USDC', 'BTC', 'ETH', 'SOL'];
 
-function serializePricesForLog(prices: {
-  asset: string;
-  price: bigint;
-  timestamp: number;
-  confidence: number;
-  sources: { source: string }[];
-}[]) {
+function serializePricesForLog(
+  prices: {
+    asset: string;
+    price: bigint;
+    timestamp: number;
+    confidence: number;
+    sources: { source: string }[];
+  }[]
+) {
   return prices.map((price) => ({
     asset: price.asset,
     price: price.price.toString(),

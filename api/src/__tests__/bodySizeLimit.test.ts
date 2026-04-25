@@ -21,7 +21,7 @@ describe('Body Size Limit Middleware', () => {
   };
 
   const originalLimit = config.bodySizeLimit.limit;
-  
+
   afterEach(() => {
     config.bodySizeLimit.limit = originalLimit;
   });

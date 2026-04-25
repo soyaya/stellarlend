@@ -33,7 +33,9 @@ describe('trace-analysis', () => {
               gasUsed: 8,
               cpuInstructions: 60,
               memoryBytes: 24,
-              stateChanges: [{ key: 'balance:pool', operation: 'update', before: '100', after: '75' }],
+              stateChanges: [
+                { key: 'balance:pool', operation: 'update', before: '100', after: '75' },
+              ],
             },
           ],
         },

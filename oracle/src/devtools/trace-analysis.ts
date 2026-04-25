@@ -118,7 +118,12 @@ export function calculateTraceOverhead(
   baselineMs: number | undefined,
   tracingMs: number | undefined
 ): TraceOverhead | undefined {
-  if (baselineMs === undefined || tracingMs === undefined || baselineMs <= 0 || tracingMs < baselineMs) {
+  if (
+    baselineMs === undefined ||
+    tracingMs === undefined ||
+    baselineMs <= 0 ||
+    tracingMs < baselineMs
+  ) {
     return undefined;
   }
 
@@ -168,7 +173,10 @@ export function analyzeTrace(
     .map((frame) => ({
       path: frame.path,
       gasUsed: frame.cumulativeGasUsed,
-      percentageOfTotalGas: totalGasUsed === 0 ? 0 : Number(((frame.cumulativeGasUsed / totalGasUsed) * 100).toFixed(2)),
+      percentageOfTotalGas:
+        totalGasUsed === 0
+          ? 0
+          : Number(((frame.cumulativeGasUsed / totalGasUsed) * 100).toFixed(2)),
     }));
 
   const warnings: string[] = [];
@@ -179,11 +187,15 @@ export function analyzeTrace(
   }
 
   if (stateChanges.length > 500) {
-    warnings.push('Trace contains more than 500 state changes; archive the raw trace instead of logging it inline.');
+    warnings.push(
+      'Trace contains more than 500 state changes; archive the raw trace instead of logging it inline.'
+    );
   }
 
   if (callFrames.some((frame) => frame.gasUsed === 0 && frame.cumulativeGasUsed > 0)) {
-    warnings.push('One or more frames reported zero local gas. Check the RPC simulator payload before using this trace for regression analysis.');
+    warnings.push(
+      'One or more frames reported zero local gas. Check the RPC simulator payload before using this trace for regression analysis.'
+    );
   }
 
   const traceOverhead = calculateTraceOverhead(snapshot.elapsedMs, snapshot.tracingElapsedMs);

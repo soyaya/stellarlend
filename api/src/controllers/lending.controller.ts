@@ -277,11 +277,7 @@ export const protocolStats = async (_req: Request, res: Response, next: NextFunc
   }
 };
 
-export const getTransactionHistory = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const getTransactionHistory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const stellarService = new StellarService();
     const pagination = parsePaginationParams(req.query as Record<string, unknown>);
@@ -298,11 +294,7 @@ export const getTransactionHistory = async (
   }
 };
 
-export const streamTransactionHistory = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const streamTransactionHistory = async (req: Request, res: Response, next: NextFunction) => {
   const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
 
   const abort = new AbortController();

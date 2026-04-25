@@ -18,7 +18,7 @@ const LIQUIDATION_THRESHOLD = 1.2;
  * Assumed annualised asset volatility used for VaR and drawdown estimates.
  * Conservative 40 % is typical for large-cap crypto collateral.
  */
-const ANNUAL_VOLATILITY = 0.40;
+const ANNUAL_VOLATILITY = 0.4;
 const DAILY_VOLATILITY = ANNUAL_VOLATILITY / Math.sqrt(252);
 
 const Z_95 = 1.6449; // 95 % one-tailed z-score
@@ -201,7 +201,8 @@ function buildSuggestions(
     suggestions.push({
       type: 'maintain',
       priority: 'optional',
-      description: 'Portfolio is well-balanced. Health factor and utilization are in the optimal range.',
+      description:
+        'Portfolio is well-balanced. Health factor and utilization are in the optimal range.',
     });
   }
 
@@ -285,13 +286,11 @@ export function analyzePortfolio(
   const portfolioValue = buildPortfolioValue(position);
 
   const collateral = safeBigInt(position.collateral);
-  const totalDebt =
-    safeBigInt(position.debt) + safeBigInt(position.borrowInterest);
+  const totalDebt = safeBigInt(position.debt) + safeBigInt(position.borrowInterest);
 
   const riskMetrics = buildRiskMetrics(collateral, totalDebt);
   const hf = computeHealthFactor(collateral, totalDebt);
-  const utilizationRate =
-    collateral > 0n ? Number(totalDebt) / Number(collateral) : 0;
+  const utilizationRate = collateral > 0n ? Number(totalDebt) / Number(collateral) : 0;
 
   const suggestions = buildSuggestions(hf, utilizationRate, collateral, totalDebt);
   const performance = buildPerformanceSummary(history);

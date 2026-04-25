@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import * as lendingController from '../controllers/lending.controller';
-import { prepareValidation, submitValidation, paginationValidation } from '../middleware/validation';
+import {
+  prepareValidation,
+  submitValidation,
+  paginationValidation,
+} from '../middleware/validation';
 
 const router: Router = Router();
 
@@ -166,7 +170,11 @@ router.post('/submit', submitValidation, lendingController.submit);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/transactions/:userAddress', paginationValidation, lendingController.getTransactionHistory);
+router.get(
+  '/transactions/:userAddress',
+  paginationValidation,
+  lendingController.getTransactionHistory
+);
 
 /**
  * @openapi

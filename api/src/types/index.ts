@@ -153,4 +153,3 @@ export type TransactionHistoryResponse = PaginatedResponse<TransactionHistoryIte
 export interface TransactionHistoryQuery extends PaginationParams {
   userAddress: string;
 }
-

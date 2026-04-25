@@ -65,10 +65,7 @@ export class RequestCoalescingService {
    * @param executor - Function that executes the actual request
    * @returns Promise that resolves with the result
    */
-  async execute<T>(
-    key: string,
-    executor: () => Promise<T>
-  ): Promise<T> {
+  async execute<T>(key: string, executor: () => Promise<T>): Promise<T> {
     this.metrics.totalRequests++;
 
     if (!this.options.enabled) {
@@ -133,7 +130,7 @@ export class RequestCoalescingService {
   ): Promise<T> {
     try {
       // Wait for grace period to allow more requests to coalesce
-      await new Promise(resolve => setTimeout(resolve, this.options.gracePeriodMs));
+      await new Promise((resolve) => setTimeout(resolve, this.options.gracePeriodMs));
 
       const result = await executor();
 
@@ -183,8 +180,7 @@ export class RequestCoalescingService {
   private updateMetrics(startTime: number) {
     const waitTime = Date.now() - startTime;
     // Simple moving average
-    this.metrics.averageWaitTime =
-      (this.metrics.averageWaitTime + waitTime) / 2;
+    this.metrics.averageWaitTime = (this.metrics.averageWaitTime + waitTime) / 2;
   }
 
   /**
@@ -194,10 +190,13 @@ export class RequestCoalescingService {
     // Sort keys for consistent hashing
     const sortedParams = Object.keys(params)
       .sort()
-      .reduce((result, key) => {
-        result[key] = params[key];
-        return result;
-      }, {} as Record<string, any>);
+      .reduce(
+        (result, key) => {
+          result[key] = params[key];
+          return result;
+        },
+        {} as Record<string, any>
+      );
 
     return `${method}:${JSON.stringify(sortedParams)}`;
   }
@@ -228,9 +227,8 @@ export class RequestCoalescingService {
    */
   getStats() {
     const metrics = this.getMetrics();
-    const coalescingRate = metrics.totalRequests > 0
-      ? (metrics.coalescedRequests / metrics.totalRequests) * 100
-      : 0;
+    const coalescingRate =
+      metrics.totalRequests > 0 ? (metrics.coalescedRequests / metrics.totalRequests) * 100 : 0;
 
     return {
       ...metrics,

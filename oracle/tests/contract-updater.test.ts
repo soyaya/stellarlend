@@ -411,7 +411,9 @@ describe('ContractUpdater', () => {
         const { SorobanRpc } = await import('@stellar/stellar-sdk');
         const mockServer = new SorobanRpc.Server('mock');
 
-        vi.spyOn(mockServer, 'getAccount').mockRejectedValue(new Error('RPC timeout: Connection timed out after 30 seconds'));
+        vi.spyOn(mockServer, 'getAccount').mockRejectedValue(
+          new Error('RPC timeout: Connection timed out after 30 seconds')
+        );
 
         const result = await updater.updatePrice('XLM', 150000n, Date.now());
 
@@ -506,7 +508,9 @@ describe('ContractUpdater', () => {
         const { SorobanRpc } = await import('@stellar/stellar-sdk');
         const mockServer = new SorobanRpc.Server('mock');
 
-        vi.spyOn(mockServer, 'sendTransaction').mockRejectedValue(new Error('Network error: ECONNREFUSED - Connection refused'));
+        vi.spyOn(mockServer, 'sendTransaction').mockRejectedValue(
+          new Error('Network error: ECONNREFUSED - Connection refused')
+        );
 
         const result = await updater.updatePrice('XLM', 150000n, Date.now());
 
@@ -519,7 +523,9 @@ describe('ContractUpdater', () => {
         const { SorobanRpc } = await import('@stellar/stellar-sdk');
         const mockServer = new SorobanRpc.Server('mock');
 
-        vi.spyOn(mockServer, 'sendTransaction').mockRejectedValue(new Error('Rate limit exceeded: Too many requests, try again later'));
+        vi.spyOn(mockServer, 'sendTransaction').mockRejectedValue(
+          new Error('Rate limit exceeded: Too many requests, try again later')
+        );
 
         const result = await updater.updatePrice('BTC', 50000000000n, Date.now());
 
@@ -531,7 +537,9 @@ describe('ContractUpdater', () => {
         const { SorobanRpc } = await import('@stellar/stellar-sdk');
         const mockServer = new SorobanRpc.Server('mock');
 
-        vi.spyOn(mockServer, 'sendTransaction').mockRejectedValue(new Error('DNS resolution failed: Unable to resolve host'));
+        vi.spyOn(mockServer, 'sendTransaction').mockRejectedValue(
+          new Error('DNS resolution failed: Unable to resolve host')
+        );
 
         const result = await updater.updatePrice('ETH', 1000000000n, Date.now());
 
@@ -701,7 +709,8 @@ describe('ContractUpdater', () => {
         const { SorobanRpc } = await import('@stellar/stellar-sdk');
         const mockServer = new SorobanRpc.Server('mock');
 
-        const detailedError = 'Simulation failed: Contract execution error: Insufficient gas limit. Required: 50000, Available: 30000';
+        const detailedError =
+          'Simulation failed: Contract execution error: Insufficient gas limit. Required: 50000, Available: 30000';
         vi.spyOn(mockServer, 'simulateTransaction').mockResolvedValue({
           error: detailedError,
           result: null,
@@ -770,7 +779,7 @@ describe('ContractUpdater', () => {
     it('should return detailed health status when all checks pass', async () => {
       const { SorobanRpc } = await import('@stellar/stellar-sdk');
       const mockServer = new SorobanRpc.Server('mock');
-      
+
       // Mock successful health checks
       vi.spyOn(mockServer, 'getHealth').mockResolvedValue({ status: 'healthy' });
       vi.spyOn(mockServer, 'getAccount').mockResolvedValue({
@@ -795,7 +804,7 @@ describe('ContractUpdater', () => {
     it('should return failure status when RPC is unreachable', async () => {
       const { SorobanRpc } = await import('@stellar/stellar-sdk');
       const mockServer = new SorobanRpc.Server('mock');
-      
+
       // Mock RPC failure
       vi.spyOn(mockServer, 'getHealth').mockRejectedValue(new Error('RPC connection failed'));
 
@@ -809,7 +818,7 @@ describe('ContractUpdater', () => {
     it('should return failure status when admin account does not exist', async () => {
       const { SorobanRpc } = await import('@stellar/stellar-sdk');
       const mockServer = new SorobanRpc.Server('mock');
-      
+
       // Mock successful RPC but failed account check
       vi.spyOn(mockServer, 'getHealth').mockResolvedValue({ status: 'healthy' });
       vi.spyOn(mockServer, 'getAccount').mockRejectedValue(new Error('Account not found'));
@@ -826,13 +835,15 @@ describe('ContractUpdater', () => {
     it('should return failure status when contract is inaccessible', async () => {
       const { SorobanRpc } = await import('@stellar/stellar-sdk');
       const mockServer = new SorobanRpc.Server('mock');
-      
+
       // Mock successful RPC and account but failed contract access
       vi.spyOn(mockServer, 'getHealth').mockResolvedValue({ status: 'healthy' });
       vi.spyOn(mockServer, 'getAccount').mockResolvedValue({
         balances: [{ asset_type: 'native', balance: '5.0' }],
       } as any);
-      vi.spyOn(mockServer, 'simulateTransaction').mockRejectedValue(new Error('Contract not deployed'));
+      vi.spyOn(mockServer, 'simulateTransaction').mockRejectedValue(
+        new Error('Contract not deployed')
+      );
 
       const healthStatus = await updater.healthCheck();
 
@@ -845,9 +856,9 @@ describe('ContractUpdater', () => {
 
     it('should complete health check within 5 seconds', async () => {
       const startTime = Date.now();
-      
+
       await updater.healthCheck();
-      
+
       const duration = Date.now() - startTime;
       expect(duration).toBeLessThan(5000);
     });
@@ -855,7 +866,7 @@ describe('ContractUpdater', () => {
     it('should handle unexpected errors gracefully', async () => {
       const { SorobanRpc } = await import('@stellar/stellar-sdk');
       const mockServer = new SorobanRpc.Server('mock');
-      
+
       // Mock unexpected error during health check
       vi.spyOn(mockServer, 'getHealth').mockRejectedValue(new Error('Unexpected error'));
 

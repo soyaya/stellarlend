@@ -27,12 +27,15 @@ jobs:
       - name: Run Semgrep Custom Protocol Rules
         run: |
           semgrep scan --config=.semgrep/soroban-rules.yaml --error --json -o semgrep-report.json || true
-          
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install cargo-deny
-        uses: EmbarkStudios/cargo-deny-action@v1
-        with:
-          command: check advisories bans
-          manifest-path: stellar-lend/Cargo.toml
+        run: cargo install cargo-deny --locked
+
+      - name: Run cargo-deny
+        run: cargo deny --manifest-path stellar-lend/Cargo.toml check --config stellar-lend/deny.toml advisories bans
 
       - name: Upload Security Report
         uses: actions/upload-artifact@v4

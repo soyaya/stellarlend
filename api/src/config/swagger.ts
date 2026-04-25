@@ -27,7 +27,11 @@ const options: swaggerJsdoc.Options = {
               type: 'string',
               enum: ['deposit', 'borrow', 'repay', 'withdraw'],
             },
-            expiresAt: { type: 'string', format: 'date-time', description: 'XDR expiration timestamp' },
+            expiresAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'XDR expiration timestamp',
+            },
           },
           required: ['unsignedXdr', 'operation', 'expiresAt'],
         },

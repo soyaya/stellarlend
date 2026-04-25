@@ -4,7 +4,11 @@ import { LendingOperation } from '../types';
 
 const stellarService = new StellarService();
 
-export const estimateGas = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const estimateGas = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { operation } = req.params;
     const { userAddress, amount, assetAddress } = req.query as {

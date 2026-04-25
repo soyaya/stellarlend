@@ -10,18 +10,16 @@ import type { OracleServiceConfig } from '../src/config.js';
 // Mock contract updater to avoid actual blockchain calls
 vi.mock('../src/services/contract-updater.js', () => ({
   createContractUpdater: vi.fn(() => ({
-    updatePrices: vi
-      .fn()
-      .mockImplementation(async (prices) => {
-        // Simulate some processing time
-        await new Promise(resolve => setTimeout(resolve, 50));
-        return prices.map((price, index) => ({
-          success: true,
-          asset: price.asset || `ASSET_${index}`,
-          price: BigInt(Math.floor((price.price || 0.15) * 1000000)),
-          timestamp: Date.now(),
-        }));
-      }),
+    updatePrices: vi.fn().mockImplementation(async (prices) => {
+      // Simulate some processing time
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return prices.map((price, index) => ({
+        success: true,
+        asset: price.asset || `ASSET_${index}`,
+        price: BigInt(Math.floor((price.price || 0.15) * 1000000)),
+        timestamp: Date.now(),
+      }));
+    }),
     healthCheck: vi.fn().mockResolvedValue(true),
     getAdminPublicKey: vi.fn().mockReturnValue('GTEST123'),
   })),
@@ -38,7 +36,7 @@ vi.mock('../src/providers/coingecko.js', () => ({
     getSupportedAssets: () => ['XLM', 'BTC', 'ETH', 'USDC', 'SOL'],
     fetchPrice: vi.fn().mockImplementation(async (asset) => {
       // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       return {
         asset,
         price: asset === 'XLM' ? 0.15 : asset === 'BTC' ? 45000 : asset === 'ETH' ? 3000 : 1,
@@ -58,7 +56,7 @@ vi.mock('../src/providers/binance.js', () => ({
     getSupportedAssets: () => ['XLM', 'BTC', 'ETH', 'USDC', 'SOL'],
     fetchPrice: vi.fn().mockImplementation(async (asset) => {
       // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 80));
+      await new Promise((resolve) => setTimeout(resolve, 80));
       return {
         asset,
         price: asset === 'XLM' ? 0.152 : asset === 'BTC' ? 45100 : asset === 'ETH' ? 3010 : 1.01,
@@ -129,14 +127,14 @@ describe('OracleService Lifecycle Integration Tests', () => {
       expect(service.getStatus().isRunning).toBe(true);
 
       // Allow at least one update cycle
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
 
       // Stop service
       service.stop();
       expect(service.getStatus().isRunning).toBe(false);
 
       // Verify no pending intervals (by waiting a bit longer)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(service.getStatus().isRunning).toBe(false);
     });
 
@@ -146,10 +144,10 @@ describe('OracleService Lifecycle Integration Tests', () => {
       // Perform multiple cycles
       for (let i = 0; i < 3; i++) {
         await service.start(['XLM']);
-        await new Promise(resolve => setTimeout(resolve, 1100));
+        await new Promise((resolve) => setTimeout(resolve, 1100));
         service.stop();
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         expect(service.getStatus().isRunning).toBe(false);
       }
     });
@@ -170,7 +168,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       expect(secondStartStatus.isRunning).toBe(true);
 
       // Service should still be functional
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 250));
       expect(service.getStatus().isRunning).toBe(true);
 
       service.stop();
@@ -178,18 +176,18 @@ describe('OracleService Lifecycle Integration Tests', () => {
 
     it('should not create multiple intervals on double start', async () => {
       service = new OracleService(mockConfig);
-      
+
       const setIntervalSpy = vi.spyOn(global, 'setInterval');
-      
+
       await service.start(['XLM']);
       const firstCallCount = setIntervalSpy.mock.calls.length;
-      
+
       await service.start(['BTC']);
       const secondCallCount = setIntervalSpy.mock.calls.length;
-      
+
       // Should not create additional intervals
       expect(secondCallCount).toBe(firstCallCount);
-      
+
       setIntervalSpy.mockRestore();
       service.stop();
     });
@@ -202,14 +200,14 @@ describe('OracleService Lifecycle Integration Tests', () => {
       await service.start(['XLM', 'BTC', 'ETH']);
 
       // Wait for update to start, then stop immediately
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       service.stop();
 
       // Should stop without throwing
       expect(service.getStatus().isRunning).toBe(false);
 
       // Wait to ensure no background processes
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       expect(service.getStatus().isRunning).toBe(false);
     });
 
@@ -219,7 +217,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       await service.start(['XLM']);
 
       // Wait for update to start
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Call stop multiple times concurrently
       const stopPromises = [
@@ -235,18 +233,18 @@ describe('OracleService Lifecycle Integration Tests', () => {
 
     it('should clean up resources even when stop is called during update', async () => {
       service = new OracleService(mockConfig);
-      
+
       const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      
+
       await service.start(['XLM', 'BTC']);
-      
+
       // Stop during active update
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
       service.stop();
-      
+
       // Verify cleanup was called
       expect(clearIntervalSpy).toHaveBeenCalled();
-      
+
       clearIntervalSpy.mockRestore();
     });
   });
@@ -256,7 +254,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       // Mock contract updater to fail initially
       const { createContractUpdater } = await import('../src/services/contract-updater.js');
       let callCount = 0;
-      
+
       vi.mocked(createContractUpdater).mockReturnValueOnce({
         updatePrices: vi.fn().mockImplementation(async () => {
           callCount++;
@@ -274,7 +272,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       await service.start(['XLM']);
 
       // Wait for failure cycles
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Service should still be running despite failures
       expect(service.getStatus().isRunning).toBe(true);
@@ -293,7 +291,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
 
       // Start and let it run
       await service.start(['XLM']);
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
 
       // Stop
       service.stop();
@@ -302,7 +300,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       await service.start(['BTC']);
       expect(service.getStatus().isRunning).toBe(true);
 
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
       service.stop();
     });
 
@@ -311,7 +309,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
 
       // First run
       await service.start(['XLM']);
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
       service.stop();
 
       const statusAfterStop = service.getStatus();
@@ -322,7 +320,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       const statusAfterRestart = service.getStatus();
       expect(statusAfterRestart.isRunning).toBe(true);
 
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
       service.stop();
     });
   });
@@ -335,7 +333,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       await service.start(['XLM', 'BTC', 'ETH', 'USDC', 'SOL']);
 
       // Wait for updates to be in progress
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Initiate graceful shutdown
       const stopStartTime = Date.now();
@@ -349,26 +347,26 @@ describe('OracleService Lifecycle Integration Tests', () => {
       expect(service.getStatus().isRunning).toBe(false);
 
       // Wait to ensure no background activity
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       expect(service.getStatus().isRunning).toBe(false);
     });
 
     it('should clean up all resources during shutdown', async () => {
       service = new OracleService(mockConfig);
-      
+
       const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      
+
       await service.start(['XLM', 'BTC']);
-      
+
       // Ensure updates are running
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       service.stop();
-      
+
       // Verify cleanup
       expect(clearIntervalSpy).toHaveBeenCalled();
       expect(service.getStatus().isRunning).toBe(false);
-      
+
       clearIntervalSpy.mockRestore();
     });
 
@@ -382,14 +380,14 @@ describe('OracleService Lifecycle Integration Tests', () => {
       await service.start(['XLM', 'BTC']);
 
       // Let multiple cycles start
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       // Shutdown should handle overlapping operations
       service.stop();
       expect(service.getStatus().isRunning).toBe(false);
 
       // Ensure complete shutdown
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       expect(service.getStatus().isRunning).toBe(false);
     });
 
@@ -415,14 +413,14 @@ describe('OracleService Lifecycle Integration Tests', () => {
   describe('Resource leak prevention', () => {
     it('should not accumulate interval references', async () => {
       service = new OracleService(mockConfig);
-      
+
       const setIntervalSpy = vi.spyOn(global, 'setInterval');
       const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
 
       // Multiple start/stop cycles
       for (let i = 0; i < 5; i++) {
         await service.start(['XLM']);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         service.stop();
       }
 
@@ -440,7 +438,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       for (let i = 0; i < 10; i++) {
         await service.start(['XLM']);
         service.stop();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       expect(service.getStatus().isRunning).toBe(false);
@@ -453,14 +451,14 @@ describe('OracleService Lifecycle Integration Tests', () => {
 
       // Test with variable delays
       const delays = [0, 10, 50, 100, 200];
-      
+
       for (const delay of delays) {
         await service.start(['XLM']);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
         service.stop();
-        
+
         expect(service.getStatus().isRunning).toBe(false);
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
     });
 
@@ -470,9 +468,7 @@ describe('OracleService Lifecycle Integration Tests', () => {
       await service.start(['XLM', 'BTC']);
 
       // Simulate load with concurrent operations
-      const operations = Array.from({ length: 10 }, (_, i) => 
-        service.updatePrices([`ASSET_${i}`])
-      );
+      const operations = Array.from({ length: 10 }, (_, i) => service.updatePrices([`ASSET_${i}`]));
 
       // Stop during load
       service.stop();

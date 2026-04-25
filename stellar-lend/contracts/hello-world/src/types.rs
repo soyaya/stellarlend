@@ -86,6 +86,43 @@ pub struct VoteInfo {
 
 #[derive(Clone, Debug, PartialEq)]
 #[contracttype]
+pub struct VotePowerSnapshot {
+    pub proposal_id: u64,
+    pub voter: Address,
+    pub balance: i128,
+    pub snapshot_time: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[contracttype]
+pub struct VoteLock {
+    pub voter: Address,
+    pub locked_until: u64,
+    pub locked_amount: i128,
+    pub proposal_id: u64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[contracttype]
+pub struct DelegationRecord {
+    pub delegator: Address,
+    pub delegatee: Address,
+    pub delegated_at: u64,
+    pub depth: u32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[contracttype]
+pub struct GovernanceAnalytics {
+    pub total_proposals: u64,
+    pub total_votes: u64,
+    pub suspicious_proposals: u64,
+    pub last_suspicious_at: u64,
+    pub max_single_voter_power: i128,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[contracttype]
 pub struct ProposalOutcome {
     pub proposal_id: u64,
     pub succeeded: bool,
@@ -172,3 +209,7 @@ pub const DEFAULT_VOTING_THRESHOLD: i128 = 5_000; // 50% default threshold
 pub const DEFAULT_TIMELOCK_DURATION: u64 = 7 * 24 * 60 * 60; // 7 days
 pub const DEFAULT_RECOVERY_PERIOD: u64 = 3 * 24 * 60 * 60; // 3 days
 pub const MIN_TIMELOCK_DELAY: u64 = 24 * 60 * 60; // 24 hours
+pub const DELEGATION_DEADLINE: u64 = 24 * 60 * 60; // 24 hours
+pub const MAX_DELEGATION_DEPTH: u32 = 3;
+pub const PROPOSAL_RATE_LIMIT: u32 = 5;
+pub const PROPOSAL_RATE_WINDOW: u64 = 24 * 60 * 60; // 24 hours

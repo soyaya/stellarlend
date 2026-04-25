@@ -11,7 +11,7 @@
 //! ## Cold vs Warm Storage
 //! - Cold read: first access to a storage entry in a transaction (higher cost)
 //! - Warm read: subsequent access to the same entry (lower cost, cached)
-//! Benchmarks track both via separate cold/warm measurement runs.
+//!   Benchmarks track both via separate cold/warm measurement runs.
 
 use serde::{Deserialize, Serialize};
 use soroban_sdk::Env;
@@ -36,23 +36,17 @@ impl RunConfig {
         let mut i = 1;
         while i < args.len() {
             match args[i].as_str() {
-                "--compare" => {
-                    if i + 1 < args.len() {
-                        config.compare_baseline = Some(args[i + 1].clone());
-                        i += 1;
-                    }
+                "--compare" if i + 1 < args.len() => {
+                    config.compare_baseline = Some(args[i + 1].clone());
+                    i += 1;
                 }
-                "--output" => {
-                    if i + 1 < args.len() {
-                        config.output_file = Some(args[i + 1].clone());
-                        i += 1;
-                    }
+                "--output" if i + 1 < args.len() => {
+                    config.output_file = Some(args[i + 1].clone());
+                    i += 1;
                 }
-                "--iterations" => {
-                    if i + 1 < args.len() {
-                        config.iterations = args[i + 1].parse().unwrap_or(1);
-                        i += 1;
-                    }
+                "--iterations" if i + 1 < args.len() => {
+                    config.iterations = args[i + 1].parse().unwrap_or(1);
+                    i += 1;
                 }
                 _ => {}
             }
@@ -154,6 +148,7 @@ pub struct BenchmarkResult {
 }
 
 impl BenchmarkResult {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         operation: impl Into<String>,
         contract: impl Into<String>,
@@ -193,10 +188,12 @@ pub struct Regression {
     pub delta: u64,
 }
 
+type BenchmarkGroup = Box<dyn Fn(&RunConfig) -> Vec<BenchmarkResult>>;
+
 /// The main benchmark suite orchestrator
 pub struct BenchmarkSuite {
     pub config: RunConfig,
-    benchmarks: Vec<Box<dyn Fn(&RunConfig) -> Vec<BenchmarkResult>>>,
+    benchmarks: Vec<BenchmarkGroup>,
     labels: Vec<String>,
 }
 

@@ -78,6 +78,10 @@ router.get('/audit-logs/export', requireRole('operator'), lendingController.expo
  *     tags:
  *       - Protocol
  */
-router.get('/audit-logs/verify', requireRole('operator'), lendingController.verifyAuditLogIntegrity);
+router.get(
+  '/audit-logs/verify',
+  requireRole('operator'),
+  lendingController.verifyAuditLogIntegrity
+);
 
 export default router;

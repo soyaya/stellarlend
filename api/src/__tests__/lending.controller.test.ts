@@ -178,16 +178,14 @@ describe('Lending Controller', () => {
         operation: 'deposit',
         userAddress: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
         amount: '1000000',
-        assetAddress: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH2U'
+        assetAddress: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH2U',
       };
 
-      const response = await request(app)
-        .post('/api/lending/submit')
-        .send(auditData);
+      const response = await request(app).post('/api/lending/submit').send(auditData);
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      
+
       // Verify audit log was called with correct structure
       expect(mockLogger.info).toHaveBeenCalledWith(
         'AUDIT',
@@ -212,7 +210,7 @@ describe('Lending Controller', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      
+
       // Verify audit log was called with redacted values
       expect(mockLogger.info).toHaveBeenCalledWith(
         'AUDIT',
@@ -231,14 +229,12 @@ describe('Lending Controller', () => {
     });
 
     it('should validate optional audit fields when provided', async () => {
-      const response = await request(app)
-        .post('/api/lending/submit')
-        .send({
-          signedXdr: 'signed_xdr_string',
-          operation: 'invalid_operation',
-          userAddress: 'invalid_address',
-          amount: 'invalid_amount'
-        });
+      const response = await request(app).post('/api/lending/submit').send({
+        signedXdr: 'signed_xdr_string',
+        operation: 'invalid_operation',
+        userAddress: 'invalid_address',
+        amount: 'invalid_amount',
+      });
 
       expect(response.status).toBe(400);
     });
@@ -256,7 +252,7 @@ describe('Lending Controller', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
-      
+
       // No audit log should be generated for failed transactions
       expect(mockLogger.info).not.toHaveBeenCalledWith('AUDIT', expect.any(Object));
     });
@@ -268,25 +264,23 @@ describe('Lending Controller', () => {
     });
 
     it('should never log secrets in audit entries', async () => {
-      const response = await request(app)
-        .post('/api/lending/submit')
-        .send({
-          signedXdr: 'signed_xdr_string',
-          operation: 'deposit',
-          userAddress: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
-          amount: '1000000',
-          // Note: userSecret should not be a field that gets logged
-        });
+      const response = await request(app).post('/api/lending/submit').send({
+        signedXdr: 'signed_xdr_string',
+        operation: 'deposit',
+        userAddress: 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
+        amount: '1000000',
+        // Note: userSecret should not be a field that gets logged
+      });
 
       expect(response.status).toBe(200);
-      
+
       // Verify audit log does not contain any secret fields
       const auditCall = (mockLogger.info.mock.calls as Array<any[]>).find(
         (call) => call[0] === 'AUDIT' && typeof call[1] === 'object' && call[1] !== null
       );
       expect(auditCall).toBeDefined();
       const auditData = (auditCall?.[1] ?? {}) as Record<string, unknown>;
-      
+
       // Ensure no secret fields are present
       expect(Object.keys(auditData)).not.toContain('userSecret');
       expect(Object.keys(auditData)).not.toContain('privateKey');
@@ -304,7 +298,12 @@ describe('Lending Controller', () => {
       expect(response.body).toHaveProperty('data');
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body).toHaveProperty('pagination');
-      expect(response.body.pagination).toEqual({ cursor: null, hasMore: false, limit: 10, total: null });
+      expect(response.body.pagination).toEqual({
+        cursor: null,
+        hasMore: false,
+        limit: 10,
+        total: null,
+      });
       expect(response.body.data[0]).toMatchObject({ transactionHash: 'tx_hash_1' });
     });
 
@@ -508,16 +507,14 @@ describe('Lending Controller', () => {
     const userAddress = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
 
     it('should respond with content-type application/x-ndjson', async () => {
-      const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}/stream`);
+      const response = await request(app).get(`/api/lending/transactions/${userAddress}/stream`);
 
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toMatch(/application\/x-ndjson/);
     });
 
     it('should stream each transaction as a separate JSON line', async () => {
-      const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}/stream`);
+      const response = await request(app).get(`/api/lending/transactions/${userAddress}/stream`);
 
       expect(response.status).toBe(200);
       const lines = response.text.trim().split('\n').filter(Boolean);
@@ -545,8 +542,7 @@ describe('Lending Controller', () => {
     it('should stream an empty body when there are no transactions', async () => {
       mockStellarService.streamTransactionHistory.mockImplementationOnce(async function* () {});
 
-      const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}/stream`);
+      const response = await request(app).get(`/api/lending/transactions/${userAddress}/stream`);
 
       expect(response.status).toBe(200);
       expect(response.text.trim()).toBe('');
@@ -565,8 +561,7 @@ describe('Lending Controller', () => {
         throw new Error('upstream failure');
       });
 
-      const response = await request(app)
-        .get(`/api/lending/transactions/${userAddress}/stream`);
+      const response = await request(app).get(`/api/lending/transactions/${userAddress}/stream`);
 
       // Headers were sent with the first item, so we get a 200 with an error line at the end
       expect(response.status).toBe(200);

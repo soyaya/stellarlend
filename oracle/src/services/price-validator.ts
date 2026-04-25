@@ -35,9 +35,9 @@ const DEFAULT_CONFIG: ValidatorConfig = {
   minPrice: 0.0000001,
   maxPrice: 1000000000,
   sourceWeights: {
-    'coingecko': 1.0,
-    'binance': 0.95,
-    'coinmarketcap': 1.0,
+    coingecko: 1.0,
+    binance: 0.95,
+    coinmarketcap: 1.0,
   },
 };
 

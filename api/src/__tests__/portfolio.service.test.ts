@@ -8,8 +8,8 @@ const ADDR = 'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2';
 function makePosition(overrides: Partial<PositionResponse> = {}): PositionResponse {
   return {
     userAddress: ADDR,
-    collateral: '10000000',  // 1 XLM
-    debt: '5000000',         // 0.5 XLM
+    collateral: '10000000', // 1 XLM
+    debt: '5000000', // 0.5 XLM
     borrowInterest: '100000',
     lastAccrualTime: 1700000000,
     collateralRatio: '1.9608',
@@ -180,11 +180,40 @@ describe('analyzePortfolio – suggestions', () => {
 
 describe('analyzePortfolio – performance', () => {
   const txs: TransactionHistoryItem[] = [
-    makeTx({ type: 'deposit',  amount: '5000000', status: 'success', timestamp: '2024-01-01T00:00:00Z' }),
-    makeTx({ type: 'borrow',   amount: '2000000', status: 'success', timestamp: '2024-01-02T00:00:00Z', transactionHash: 'tx2' }),
-    makeTx({ type: 'repay',    amount: '1000000', status: 'success', timestamp: '2024-01-03T00:00:00Z', transactionHash: 'tx3' }),
-    makeTx({ type: 'withdraw', amount: '500000',  status: 'success', timestamp: '2024-01-04T00:00:00Z', transactionHash: 'tx4' }),
-    makeTx({ type: 'deposit',  amount: '999999',  status: 'failed',  timestamp: '2024-01-05T00:00:00Z', transactionHash: 'tx5' }),
+    makeTx({
+      type: 'deposit',
+      amount: '5000000',
+      status: 'success',
+      timestamp: '2024-01-01T00:00:00Z',
+    }),
+    makeTx({
+      type: 'borrow',
+      amount: '2000000',
+      status: 'success',
+      timestamp: '2024-01-02T00:00:00Z',
+      transactionHash: 'tx2',
+    }),
+    makeTx({
+      type: 'repay',
+      amount: '1000000',
+      status: 'success',
+      timestamp: '2024-01-03T00:00:00Z',
+      transactionHash: 'tx3',
+    }),
+    makeTx({
+      type: 'withdraw',
+      amount: '500000',
+      status: 'success',
+      timestamp: '2024-01-04T00:00:00Z',
+      transactionHash: 'tx4',
+    }),
+    makeTx({
+      type: 'deposit',
+      amount: '999999',
+      status: 'failed',
+      timestamp: '2024-01-05T00:00:00Z',
+      transactionHash: 'tx5',
+    }),
   ];
 
   it('sums amounts by operation type (success only)', () => {
@@ -233,7 +262,12 @@ describe('analyzePortfolio – performance', () => {
 describe('toCSV', () => {
   const txs: TransactionHistoryItem[] = [
     makeTx({ type: 'deposit', amount: '1000000', timestamp: '2024-01-01T00:00:00Z' }),
-    makeTx({ type: 'borrow',  amount: '500000',  timestamp: '2024-01-02T00:00:00Z', transactionHash: 'tx2' }),
+    makeTx({
+      type: 'borrow',
+      amount: '500000',
+      timestamp: '2024-01-02T00:00:00Z',
+      transactionHash: 'tx2',
+    }),
   ];
 
   it('produces a header row as the first line', () => {

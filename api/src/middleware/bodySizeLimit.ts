@@ -6,11 +6,7 @@ import { PayloadTooLargeError } from '../utils/errors';
  * Middleware to enforce a maximum request body size limit.
  * Returns 413 Payload Too Large when the limit is exceeded.
  */
-export const bodySizeLimitMiddleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const bodySizeLimitMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   const contentLength = req.headers['content-length'];
 
   if (contentLength) {
