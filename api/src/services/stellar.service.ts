@@ -177,6 +177,50 @@ export class StellarService {
     }
   }
 
+  async estimateGas(
+    operation: LendingOperation,
+    userAddress: string,
+    assetAddress: string | undefined,
+    amount: string
+  ): Promise<{ cpuInstructions: string; memoryBytes: string; minResourceFee: string }> {
+    const coalescingKey = requestCoalescingService.generateKey('estimateGas', { operation, userAddress, assetAddress, amount });
+    return requestCoalescingService.execute(coalescingKey, async () => {
+      try {
+        const account = await this.getAccount(userAddress);
+        const contract = new Contract(this.contractId);
+
+        const params = [
+          new Address(userAddress).toScVal(),
+          assetAddress ? new Address(assetAddress).toScVal() : xdr.ScVal.scvVoid(),
+          nativeToScVal(BigInt(amount), { type: 'i128' }),
+        ];
+
+        const tx = new TransactionBuilder(account, {
+          fee: BASE_FEE,
+          networkPassphrase: this.networkPassphrase,
+        })
+          .addOperation(contract.call(CONTRACT_METHODS[operation], ...params))
+          .setTimeout(TX_TIMEOUT_SECONDS)
+          .build();
+
+        const simulation = await (this.sorobanServer as any).simulateTransaction(tx);
+        
+        if (simulation.error) {
+          throw new InternalServerError(`Simulation failed: ${simulation.error}`);
+        }
+
+        return {
+          cpuInstructions: simulation.cost?.cpuInsns || '0',
+          memoryBytes: simulation.cost?.memBytes || '0',
+          minResourceFee: simulation.minResourceFee || '0',
+        };
+      } catch (error: any) {
+        logger.error(`Failed to estimate gas for ${operation}:`, error);
+        throw new InternalServerError(error.message || `Failed to estimate gas for ${operation}`);
+      }
+    });
+  }
+
   private buildReadOnlyTransaction(methodName: string, ...params: any[]): any {
     const account = new Account(this.readOnlySimulationAccount, '0');
     const contract = new Contract(this.contractId);

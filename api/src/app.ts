@@ -8,6 +8,7 @@ import lendingRoutes from './routes/lending.routes';
 import healthRoutes from './routes/health.routes';
 import protocolRoutes from './routes/protocol.routes';
 import portfolioRoutes from './routes/portfolio.routes';
+import gasRoutes from './routes/gas.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { idempotencyMiddleware } from './middleware/idempotency';
 import { swaggerSpec } from './config/swagger';
@@ -91,6 +92,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/protocol', protocolRoutes);
 app.use('/api/lending', idempotencyMiddleware, userRateLimiter, lendingRoutes);
 app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/gas', userRateLimiter, gasRoutes);
 
 app.use(errorHandler);
 

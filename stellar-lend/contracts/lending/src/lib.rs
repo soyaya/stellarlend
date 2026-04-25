@@ -8,6 +8,7 @@ pub mod invariants;
 pub mod pause;
 mod token_receiver;
 mod withdraw;
+pub mod yield_farming;
 use soroban_sdk::{contractevent, Address, Symbol};
 
 // ─────────────────────────────────────────
