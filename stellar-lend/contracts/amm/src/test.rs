@@ -293,6 +293,9 @@ fn test_add_liquidity() {
         min_amount_a: 9000,
         min_amount_b: 9000,
         deadline: env.ledger().timestamp() + 3600,
+        tick_lower: None,
+        tick_upper: None,
+        fee_tier: None,
     };
 
     let lp_tokens = contract.add_liquidity(&user, &params);
@@ -494,6 +497,9 @@ fn test_liquidity_failure_paused() {
         min_amount_a: 5000,
         min_amount_b: 5000,
         deadline: env.ledger().timestamp() + 3600,
+        tick_lower: None,
+        tick_upper: None,
+        fee_tier: None,
     };
 
     let result = contract.try_add_liquidity(&user, &params);

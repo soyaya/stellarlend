@@ -185,6 +185,12 @@ pub struct LiquidityParams {
     pub min_amount_b: i128,
     /// Deadline for the operation (timestamp)
     pub deadline: u64,
+    /// Lower tick for concentrated liquidity (optional)
+    pub tick_lower: Option<i32>,
+    /// Upper tick for concentrated liquidity (optional)
+    pub tick_upper: Option<i32>,
+    /// Fee tier configuration
+    pub fee_tier: Option<u32>,
 }
 
 /// Liquidity operation record
@@ -207,6 +213,10 @@ pub struct LiquidityRecord {
     pub amount_b: i128,
     /// LP tokens received/burned
     pub lp_tokens: i128,
+    /// Lower tick for concentrated liquidity (optional)
+    pub tick_lower: Option<i32>,
+    /// Upper tick for concentrated liquidity (optional)
+    pub tick_upper: Option<i32>,
     /// Timestamp
     pub timestamp: u64,
 }
@@ -470,6 +480,9 @@ pub fn remove_liquidity(
         min_amount_a,
         min_amount_b,
         deadline,
+        tick_lower: None,
+        tick_upper: None,
+        fee_tier: None,
     };
 
     // Record liquidity operation
@@ -926,6 +939,8 @@ fn record_liquidity_operation(
         amount_a: params.amount_a,
         amount_b: params.amount_b,
         lp_tokens,
+        tick_lower: params.tick_lower,
+        tick_upper: params.tick_upper,
         timestamp: env.ledger().timestamp(),
     };
 

@@ -111,6 +111,10 @@ export class RequestCoalescingService {
 
       // Create the shared promise
       pending.promise = this.createSharedPromise(key, executor, pending);
+      pending.promise.catch(() => {
+        // The outer promise is rejected via pending.reject; observing this
+        // internal promise prevents unhandled rejections under test/Node.
+      });
 
       this.pendingRequests.set(key, pending);
       this.metrics.activeCoalescingGroups++;

@@ -626,4 +626,144 @@ describe('StellarService', () => {
       }
     );
   });
+
+  describe('estimateGas', () => {
+    it('returns resource estimates from Soroban simulation', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        cost: { cpuInsns: '12345', memBytes: '678' },
+        minResourceFee: '999',
+      });
+
+      const result = await service.estimateGas(
+        'deposit',
+        'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        undefined,
+        '1000000'
+      );
+
+      expect(result).toEqual({
+        cpuInstructions: '12345',
+        memoryBytes: '678',
+        minResourceFee: '999',
+      });
+    });
+
+    it('uses default estimate values when simulation omits optional cost fields', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({});
+
+      const result = await service.estimateGas(
+        'borrow',
+        'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY',
+        '2500000'
+      );
+
+      expect(result).toEqual({
+        cpuInstructions: '0',
+        memoryBytes: '0',
+        minResourceFee: '0',
+      });
+    });
+
+    it('throws an InternalServerError when simulation reports an error', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        error: 'resource limit exceeded',
+      });
+
+      await expect(
+        service.estimateGas(
+          'withdraw',
+          'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+          undefined,
+          '1000000'
+        )
+      ).rejects.toThrow('Simulation failed: resource limit exceeded');
+    });
+  });
+
+  describe('transaction history service paths', () => {
+    const userAddress = `G${'A'.repeat(56)}`;
+
+    const lendingTransaction = {
+      hash: 'tx-history-1',
+      created_at: '2026-04-25T00:00:00Z',
+      successful: true,
+      ledger: 123,
+      memo: 'deposit memo',
+      operations: [
+        {
+          type: 'invoke_contract_function',
+          contract_id: 'test-contract-id',
+          function_name: 'deposit_collateral',
+          function_parameters: [{ value: userAddress }, { value: 'asset-1' }, { value: '5000' }],
+        },
+      ],
+    };
+
+    it('maps Horizon transactions and pagination metadata for lending history', async () => {
+      mockedAxios.get.mockResolvedValue({
+        data: {
+          _embedded: { records: [lendingTransaction, { operations: [] }] },
+          _links: {
+            next: {
+              href: 'https://horizon.example/accounts/user/transactions?cursor=next-cursor',
+            },
+          },
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: { url: '' },
+      });
+
+      const result = await service.getTransactionHistory({
+        userAddress,
+        limit: '5',
+        cursor: 'start-cursor',
+      } as any);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        transactionHash: 'tx-history-1',
+        type: 'deposit',
+        amount: '5000',
+        assetAddress: 'asset-1',
+        status: 'success',
+        ledger: 123,
+      });
+      expect(result.pagination.hasMore).toBe(true);
+      expect(result.pagination.cursor).toBeDefined();
+      expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining('/transactions?'));
+    });
+
+    it('streams lending transactions across paginated Horizon responses', async () => {
+      mockedAxios.get
+        .mockResolvedValueOnce({
+          data: {
+            _embedded: { records: [lendingTransaction] },
+            _links: { next: { href: 'https://horizon.example/next-page' } },
+          },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: { url: '' },
+        })
+        .mockResolvedValueOnce({
+          data: { _embedded: { records: [] }, _links: {} },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: { url: '' },
+        });
+
+      const streamed = [];
+      for await (const tx of service.streamTransactionHistory(userAddress, 2)) {
+        streamed.push(tx);
+      }
+
+      expect(streamed).toHaveLength(1);
+      expect(streamed[0]).toMatchObject({ transactionHash: 'tx-history-1', type: 'deposit' });
+      expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+    });
+  });
 });

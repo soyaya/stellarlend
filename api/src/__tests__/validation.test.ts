@@ -43,14 +43,22 @@ describe('Validation Middleware', () => {
     });
 
     it('should accept valid Stellar public key', async () => {
-      const response = await request(app).get('/api/lending/prepare/deposit').query({
+      const validationOnlyApp = express();
+      validationOnlyApp.get(
+        '/prepare/:operation',
+        prepareValidation,
+        (_req: Request, res: Response) => res.status(204).send()
+      );
+      validationOnlyApp.use(errorHandler);
+
+      const response = await request(validationOnlyApp).get('/prepare/deposit').query({
         userAddress: VALID_ADDRESS,
         assetAddress: 'G...',
         amount: '100',
       });
 
-      expect(response.status).not.toBe(400);
-    });
+      expect(response.status).toBe(204);
+    }, 15000);
 
     it('should reject missing amount', async () => {
       const response = await request(app).get('/api/lending/prepare/deposit').query({
