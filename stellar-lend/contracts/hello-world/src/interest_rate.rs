@@ -58,6 +58,26 @@ pub enum InterestRateDataKey {
     Admin,
     /// Placeholder for emergency rate adjustment status
     EmergencyRateAdjustment,
+    /// Global compound interest index (borrow + supply)
+    /// Value type: LendingIndex
+    LendingIndex,
+}
+
+/// Index scale: 1e12 represents 1.0 (to maintain precision for compound growth)
+pub const INDEX_SCALE: i128 = 1_000_000_000_000;
+
+/// Global lending index for compound interest accrual.
+/// Borrow index starts at INDEX_SCALE (= 1.0) and grows each time interest is accrued.
+/// User interest = principal * (current_index - user_index) / user_index
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct LendingIndex {
+    /// Current borrow index (scaled by INDEX_SCALE)
+    pub borrow_index: i128,
+    /// Current supply index (scaled by INDEX_SCALE)
+    pub supply_index: i128,
+    /// Timestamp of the last index update
+    pub last_update: u64,
 }
 
 /// Interest rate configuration parameters
@@ -429,4 +449,112 @@ pub fn get_current_supply_rate(env: &Env) -> Result<i128, InterestRateError> {
 /// Get current utilization (in basis points)
 pub fn get_current_utilization(env: &Env) -> Result<i128, InterestRateError> {
     calculate_utilization(env)
+}
+
+// -------------------------------------------------------------------------
+// Compound Interest Index
+// -------------------------------------------------------------------------
+
+/// Return the stored global lending index, or a fresh default if not yet initialised.
+pub fn get_lending_index(env: &Env) -> LendingIndex {
+    env.storage()
+        .persistent()
+        .get::<InterestRateDataKey, LendingIndex>(&InterestRateDataKey::LendingIndex)
+        .unwrap_or(LendingIndex {
+            borrow_index: INDEX_SCALE,
+            supply_index: INDEX_SCALE,
+            last_update: env.ledger().timestamp(),
+        })
+}
+
+/// Update the global borrow/supply indices based on time elapsed since the last update.
+///
+/// The indices grow continuously:
+///   new_index = old_index + old_index * rate_bps * time_elapsed / (BASIS_POINTS * SECONDS_PER_YEAR)
+///
+/// Idempotent within the same ledger second (returns stored value unchanged).
+pub fn update_lending_index(env: &Env) -> Result<LendingIndex, InterestRateError> {
+    let mut idx = get_lending_index(env);
+    let current_time = env.ledger().timestamp();
+
+    if current_time <= idx.last_update {
+        return Ok(idx);
+    }
+
+    let time_elapsed = current_time - idx.last_update;
+    let borrow_rate = calculate_borrow_rate(env).unwrap_or(0);
+    let supply_rate = calculate_supply_rate(env).unwrap_or(0);
+
+    let denom = BASIS_POINTS_SCALE
+        .checked_mul(SECONDS_PER_YEAR as i128)
+        .ok_or(InterestRateError::Overflow)?;
+
+    // borrow_index growth
+    let borrow_growth = idx
+        .borrow_index
+        .checked_mul(borrow_rate)
+        .ok_or(InterestRateError::Overflow)?
+        .checked_mul(time_elapsed as i128)
+        .ok_or(InterestRateError::Overflow)?
+        .checked_div(denom)
+        .unwrap_or(0);
+
+    // supply_index growth
+    let supply_growth = idx
+        .supply_index
+        .checked_mul(supply_rate)
+        .ok_or(InterestRateError::Overflow)?
+        .checked_mul(time_elapsed as i128)
+        .ok_or(InterestRateError::Overflow)?
+        .checked_div(denom)
+        .unwrap_or(0);
+
+    idx.borrow_index = idx
+        .borrow_index
+        .checked_add(borrow_growth)
+        .ok_or(InterestRateError::Overflow)?;
+    idx.supply_index = idx
+        .supply_index
+        .checked_add(supply_growth)
+        .ok_or(InterestRateError::Overflow)?;
+    idx.last_update = current_time;
+
+    env.storage()
+        .persistent()
+        .set(&InterestRateDataKey::LendingIndex, &idx);
+
+    Ok(idx)
+}
+
+/// Return the current borrow index (scaled by INDEX_SCALE).
+pub fn get_borrow_index(env: &Env) -> i128 {
+    get_lending_index(env).borrow_index
+}
+
+/// Return the current supply index (scaled by INDEX_SCALE).
+pub fn get_supply_index(env: &Env) -> i128 {
+    get_lending_index(env).supply_index
+}
+
+/// Compute the compound interest accrued on `principal` as the index moved
+/// from `user_index` to `current_index`.
+///
+/// Returns 0 when `current_index <= user_index` or `user_index == 0`.
+pub fn compute_index_interest(
+    principal: i128,
+    user_index: i128,
+    current_index: i128,
+) -> Result<i128, InterestRateError> {
+    if principal == 0 || user_index == 0 || current_index <= user_index {
+        return Ok(0);
+    }
+    let delta = current_index
+        .checked_sub(user_index)
+        .ok_or(InterestRateError::Overflow)?;
+    let interest = principal
+        .checked_mul(delta)
+        .ok_or(InterestRateError::Overflow)?
+        .checked_div(user_index)
+        .ok_or(InterestRateError::DivisionByZero)?;
+    Ok(interest)
 }

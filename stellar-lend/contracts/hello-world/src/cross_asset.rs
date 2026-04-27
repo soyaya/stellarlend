@@ -18,7 +18,37 @@
 //! - Prices must not be stale (> 1 hour old) for position calculations.
 
 #![allow(dead_code)]
-use soroban_sdk::{contracterror, contracttype, symbol_short, Address, Env, Map, Symbol, Vec};
+use soroban_sdk::{contractevent, contracterror, contracttype, symbol_short, Address, Env, Map, Symbol, Vec};
+
+// -------------------------------------------------------------------------
+// Events for cap changes and pool state changes
+// -------------------------------------------------------------------------
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct SupplyCapChangedEvent {
+    pub asset: Option<Address>,
+    pub old_cap: i128,
+    pub new_cap: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct BorrowCapChangedEvent {
+    pub asset: Option<Address>,
+    pub old_cap: i128,
+    pub new_cap: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct PoolFrozenEvent {
+    pub asset: Option<Address>,
+    pub frozen: bool,
+    pub timestamp: u64,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -45,6 +75,11 @@ pub struct AssetConfig {
     pub price: i128,
     /// Last price update timestamp
     pub price_updated_at: u64,
+    /// Isolated pool: collateral in this pool can only back debt in this pool.
+    /// Prevents cross-pool contagion from correlated asset failures.
+    pub is_isolated: bool,
+    /// Emergency freeze: when true, no new deposits or borrows are accepted.
+    pub is_frozen: bool,
 }
 
 /// User position across a single asset
@@ -241,8 +276,12 @@ pub fn update_asset_config(
 ) -> Result<(), CrossAssetError> {
     require_admin(env)?;
 
-    let asset_key = AssetKey::from_option(asset);
+    let asset_key = AssetKey::from_option(asset.clone());
     let mut config = get_asset_config(env, &asset_key)?;
+
+    // Snapshot old caps for event emission.
+    let old_supply_cap = config.max_supply;
+    let old_borrow_cap = config.max_borrow;
 
     if let Some(cf) = collateral_factor {
         require_valid_basis_points(cf)?;
@@ -277,8 +316,32 @@ pub fn update_asset_config(
         .get(&ASSET_CONFIGS)
         .unwrap_or(Map::new(env));
 
-    configs.set(asset_key, config);
+    configs.set(asset_key, config.clone());
     env.storage().persistent().set(&ASSET_CONFIGS, &configs);
+
+    let ts = env.ledger().timestamp();
+
+    // Emit supply-cap-changed event when the cap changed.
+    if config.max_supply != old_supply_cap {
+        SupplyCapChangedEvent {
+            asset: asset.clone(),
+            old_cap: old_supply_cap,
+            new_cap: config.max_supply,
+            timestamp: ts,
+        }
+        .publish(env);
+    }
+
+    // Emit borrow-cap-changed event when the cap changed.
+    if config.max_borrow != old_borrow_cap {
+        BorrowCapChangedEvent {
+            asset: asset.clone(),
+            old_cap: old_borrow_cap,
+            new_cap: config.max_borrow,
+            timestamp: ts,
+        }
+        .publish(env);
+    }
 
     Ok(())
 }
@@ -501,10 +564,16 @@ pub fn cross_asset_deposit(
     let asset_key = AssetKey::from_option(asset.clone());
     let config = get_asset_config(env, &asset_key)?;
 
+    // Reject deposits into a frozen pool.
+    if config.is_frozen {
+        return Err(CrossAssetError::AssetDisabled);
+    }
+
     if !config.can_collateralize {
         return Err(CrossAssetError::AssetDisabled);
     }
 
+    // Supply cap enforcement (considers only raw supply; accrued interest checked separately).
     if config.max_supply > 0 {
         let total_supply = get_total_supply(env, &asset_key);
         if total_supply + amount > config.max_supply {
@@ -608,10 +677,16 @@ pub fn cross_asset_borrow(
     let asset_key = AssetKey::from_option(asset.clone());
     let config = get_asset_config(env, &asset_key)?;
 
+    // Reject borrows from a frozen pool.
+    if config.is_frozen {
+        return Err(CrossAssetError::AssetDisabled);
+    }
+
     if !config.can_borrow {
         return Err(CrossAssetError::AssetDisabled);
     }
 
+    // Borrow-cap enforcement.
     if config.max_borrow > 0 {
         let total_borrow = get_total_borrow(env, &asset_key);
         if total_borrow + amount > config.max_borrow {
@@ -626,12 +701,29 @@ pub fn cross_asset_borrow(
 
     set_user_asset_position(env, &user, asset.clone(), position.clone());
 
-    let summary = get_user_position_summary(env, &user)?;
+    if config.is_isolated {
+        // Isolated pool: only collateral deposited in THIS pool may back its debt.
+        let pool_collateral = position.collateral;
+        let pool_debt = position.debt_principal + position.accrued_interest;
+        let max_pool_debt = pool_collateral
+            .checked_mul(config.collateral_factor)
+            .unwrap_or(0)
+            .checked_div(10_000)
+            .unwrap_or(0);
 
-    if summary.health_factor < 10_000 {
-        position.debt_principal -= amount;
-        set_user_asset_position(env, &user, asset, position);
-        return Err(CrossAssetError::ExceedsBorrowCapacity);
+        if pool_debt > max_pool_debt {
+            position.debt_principal -= amount;
+            set_user_asset_position(env, &user, asset, position);
+            return Err(CrossAssetError::ExceedsBorrowCapacity);
+        }
+    } else {
+        // Non-isolated: use cross-pool health factor as before.
+        let summary = get_user_position_summary(env, &user)?;
+        if summary.health_factor < 10_000 {
+            position.debt_principal -= amount;
+            set_user_asset_position(env, &user, asset, position);
+            return Err(CrossAssetError::ExceedsBorrowCapacity);
+        }
     }
 
     update_total_borrow(env, &asset_key, amount);
@@ -713,6 +805,102 @@ pub fn get_asset_config_by_address(
 ) -> Result<AssetConfig, CrossAssetError> {
     let asset_key = AssetKey::from_option(asset);
     get_asset_config(env, &asset_key)
+}
+
+// -------------------------------------------------------------------------
+// Analytics endpoints
+// -------------------------------------------------------------------------
+
+/// Return the available supply headroom for an asset.
+///
+/// Returns `(available, cap, current_supply)`:
+/// - `available`: how much more can be deposited (0 if at/over cap, or cap=0 for unlimited).
+/// - `cap`: the configured supply cap (0 means unlimited).
+/// - `current_supply`: total supply currently deposited.
+pub fn get_supply_headroom(
+    env: &Env,
+    asset: Option<Address>,
+) -> Result<(i128, i128, i128), CrossAssetError> {
+    let asset_key = AssetKey::from_option(asset);
+    let config = get_asset_config(env, &asset_key)?;
+    let current_supply = get_total_supply(env, &asset_key);
+
+    if config.max_supply == 0 {
+        return Ok((i128::MAX, 0, current_supply));
+    }
+
+    let available = (config.max_supply - current_supply).max(0);
+    Ok((available, config.max_supply, current_supply))
+}
+
+/// Return borrow utilization for an asset.
+///
+/// Returns `(current_borrows, cap)`:
+/// - `current_borrows`: total amount currently borrowed.
+/// - `cap`: the configured borrow cap (0 means unlimited).
+pub fn get_borrow_utilization(
+    env: &Env,
+    asset: Option<Address>,
+) -> Result<(i128, i128), CrossAssetError> {
+    let asset_key = AssetKey::from_option(asset);
+    let config = get_asset_config(env, &asset_key)?;
+    let current_borrows = get_total_borrow(env, &asset_key);
+    Ok((current_borrows, config.max_borrow))
+}
+
+// -------------------------------------------------------------------------
+// Emergency pool management
+// -------------------------------------------------------------------------
+
+/// Freeze or unfreeze a pool, preventing new deposits and borrows.
+///
+/// # Arguments
+/// * `env` - The contract environment
+/// * `admin` - Admin address (must authorize)
+/// * `asset` - Asset to freeze/unfreeze (`None` for XLM)
+/// * `freeze` - `true` to freeze, `false` to unfreeze
+///
+/// # Errors
+/// * `NotAuthorized` - Caller is not the admin
+/// * `AssetNotConfigured` - Asset has not been initialized
+pub fn freeze_pool(
+    env: &Env,
+    admin: Address,
+    asset: Option<Address>,
+    freeze: bool,
+) -> Result<(), CrossAssetError> {
+    // Verify caller is the registered CA admin.
+    let stored_admin: Address = env
+        .storage()
+        .persistent()
+        .get(&ADMIN)
+        .ok_or(CrossAssetError::NotAuthorized)?;
+    if admin != stored_admin {
+        return Err(CrossAssetError::NotAuthorized);
+    }
+    admin.require_auth();
+
+    let asset_key = AssetKey::from_option(asset.clone());
+    let mut config = get_asset_config(env, &asset_key)?;
+    config.is_frozen = freeze;
+
+    let mut configs: Map<AssetKey, AssetConfig> = env
+        .storage()
+        .persistent()
+        .get(&ASSET_CONFIGS)
+        .unwrap_or(Map::new(env));
+
+    configs.set(asset_key, config);
+    env.storage().persistent().set(&ASSET_CONFIGS, &configs);
+
+    PoolFrozenEvent {
+        asset,
+        frozen: freeze,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
+
+    Ok(())
 }
 
 // Helper functions
