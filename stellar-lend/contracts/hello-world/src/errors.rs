@@ -3,6 +3,7 @@ use soroban_sdk::contracterror;
 use crate::admin::AdminError;
 use crate::analytics::AnalyticsError;
 use crate::borrow::BorrowError;
+use crate::cross_asset::CrossAssetError;
 use crate::deposit::DepositError;
 use crate::flash_loan::FlashLoanError;
 use crate::interest_rate::InterestRateError;
@@ -320,3 +321,20 @@ impl_from_error!(WithdrawError, {
     WithdrawError::Reentrancy => LendingError::Reentrancy,
     WithdrawError::Undercollateralized => LendingError::InvalidState,
 });
+
+impl From<CrossAssetError> for LendingError {
+    fn from(error: CrossAssetError) -> Self {
+        match error {
+            CrossAssetError::AssetNotConfigured => LendingError::DataNotFound,
+            CrossAssetError::AssetDisabled => LendingError::AssetNotEnabled,
+            CrossAssetError::InsufficientCollateral => LendingError::InsufficientCollateral,
+            CrossAssetError::ExceedsBorrowCapacity => LendingError::InsufficientCollateralRatio,
+            CrossAssetError::UnhealthyPosition => LendingError::InsufficientCollateralRatio,
+            CrossAssetError::SupplyCapExceeded => LendingError::LimitExceeded,
+            CrossAssetError::BorrowCapExceeded => LendingError::LimitExceeded,
+            CrossAssetError::InvalidPrice => LendingError::PriceUnavailable,
+            CrossAssetError::PriceStale => LendingError::PriceUnavailable,
+            CrossAssetError::NotAuthorized => LendingError::Unauthorized,
+        }
+    }
+}

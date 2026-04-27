@@ -499,10 +499,10 @@ pub fn get_parameter_optimization_recommendation(
         suggested_quorum_bps = suggested_quorum_bps.saturating_add(250).min(9_000);
     }
 
-    let mut suggested_default_voting_threshold = config.default_voting_threshold;
+    let mut suggested_vote_threshold = config.default_voting_threshold;
     if analytics.suspicious_proposals > 0 {
-        suggested_default_voting_threshold =
-            (suggested_default_voting_threshold + 250).min(BASIS_POINTS_SCALE);
+        suggested_vote_threshold =
+            (suggested_vote_threshold + 250).min(BASIS_POINTS_SCALE);
     }
 
     let transparency_note = String::from_str(
@@ -513,7 +513,7 @@ pub fn get_parameter_optimization_recommendation(
     let recommendation = ParameterOptimizationRecommendation {
         generated_at: env.ledger().timestamp(),
         suggested_quorum_bps,
-        suggested_default_voting_threshold,
+        suggested_vote_threshold,
         suggested_voting_period: config.voting_period,
         transparency_note,
     };

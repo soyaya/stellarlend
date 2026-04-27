@@ -107,28 +107,54 @@ fn calculate_accrued_interest(
     .map_err(|_| LiquidationError::Overflow)
 }
 
-/// Accrue interest on a position
-fn accrue_interest(env: &Env, position: &mut Position) -> Result<(), LiquidationError> {
+/// Accrue compound interest on a position using the global borrow index.
+fn accrue_interest(
+    env: &Env,
+    user: &Address,
+    position: &mut Position,
+) -> Result<(), LiquidationError> {
     let current_time = env.ledger().timestamp();
 
     if position.debt == 0 {
         position.borrow_interest = 0;
         position.last_accrual_time = current_time;
+        let current_index = crate::interest_rate::update_lending_index(env)
+            .map_err(|_| LiquidationError::Overflow)?
+            .borrow_index;
+        env.storage().persistent().set(
+            &DepositDataKey::UserBorrowIndex(user.clone()),
+            &current_index,
+        );
         return Ok(());
     }
 
-    // Calculate new interest accrued using dynamic rate
-    let new_interest =
-        calculate_accrued_interest(env, position.debt, position.last_accrual_time, current_time)?;
+    let current_index = crate::interest_rate::update_lending_index(env)
+        .map_err(|_| LiquidationError::Overflow)?
+        .borrow_index;
 
-    // Add to existing interest
+    let user_index = env
+        .storage()
+        .persistent()
+        .get::<DepositDataKey, i128>(&DepositDataKey::UserBorrowIndex(user.clone()))
+        .unwrap_or(current_index);
+
+    let new_interest = crate::interest_rate::compute_index_interest(
+        position.debt,
+        user_index,
+        current_index,
+    )
+    .map_err(|_| LiquidationError::Overflow)?;
+
     position.borrow_interest = position
         .borrow_interest
         .checked_add(new_interest)
         .ok_or(LiquidationError::Overflow)?;
-
-    // Update last accrual time
     position.last_accrual_time = current_time;
+
+    env.storage().persistent().set(
+        &DepositDataKey::UserBorrowIndex(user.clone()),
+        &current_index,
+    );
 
     Ok(())
 }
@@ -258,8 +284,8 @@ pub fn liquidate(
         .get::<DepositDataKey, Position>(&position_key)
         .ok_or(LiquidationError::NotLiquidatable)?;
 
-    // Accrue interest before liquidation
-    accrue_interest(env, &mut position)?;
+    // Accrue compound interest before liquidation
+    accrue_interest(env, &borrower, &mut position)?;
 
     // Get collateral balance for the targeted collateral asset.
     // For multi-asset users, use per-asset balance; fall back to aggregate for legacy users.

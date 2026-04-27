@@ -159,7 +159,7 @@ pub struct ProposalSimulationResult {
 pub struct ParameterOptimizationRecommendation {
     pub generated_at: u64,
     pub suggested_quorum_bps: u32,
-    pub suggested_default_voting_threshold: i128,
+    pub suggested_vote_threshold: i128,
     pub suggested_voting_period: u64,
     pub transparency_note: String,
 }

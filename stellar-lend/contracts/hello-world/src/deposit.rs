@@ -88,6 +88,8 @@ pub enum DepositDataKey {
     UserAssetCollateral(Address, Address),
     /// Ordered list of collateral assets per user: user -> Vec<Address>
     UserAssetList(Address),
+    /// Recorded borrow index at last user accrual: user -> i128
+    UserBorrowIndex(Address),
 }
 
 /// Asset parameters for collateral
