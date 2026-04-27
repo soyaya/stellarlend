@@ -103,3 +103,18 @@ export function logProviderHealth(
     logger.warn('Provider unhealthy', logData);
   }
 }
+/**
+ * Log Oracle price staleness alert
+ */
+export function logStalenessAlert(
+  ageSeconds: number,
+  thresholdSeconds: number,
+  lastUpdateTime?: number
+) {
+  logger.warn('Oracle price staleness detected', {
+    ageSeconds,
+    thresholdSeconds,
+    lastUpdateTime: lastUpdateTime ? new Date(lastUpdateTime).toISOString() : 'never',
+    alertType: 'staleness_monitor',
+  });
+}

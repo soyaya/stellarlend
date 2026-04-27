@@ -22,7 +22,7 @@
 //! - **Upgrade manager** — static prefixes: `up_init`, `up_apadd`, `up_prop`, `up_appr`, `up_exec`,
 //!   `up_roll`, plus `#[topic]` fields as before.
 
-use soroban_sdk::{contractevent, Address, String};
+use soroban_sdk::{contractevent, contracttype, Address, Env, String};
 
 // ─── Lending (LendingContract) ─────────────────────────────────────────────
 
@@ -84,6 +84,72 @@ pub struct FlashLoanEvent {
     pub amount: i128,
     pub fee: i128,
     pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct PegDeviationEvent {
+    pub asset: Address,
+    pub price: i128,
+    pub target_price: i128,
+    pub deviation_bps: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct StabilityFeeAppliedEvent {
+    pub asset: Address,
+    pub fee_bps: i128,
+    pub timestamp: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum RiskAlertSeverity {
+    Warning = 1,
+    Critical = 2,
+    Emergency = 3,
+}
+
+#[contractevent(topics = ["risk_util_alert"])]
+#[derive(Clone, Debug)]
+pub struct RiskUtilizationAlertEvent {
+    pub severity: u32,
+    pub utilization_bps: u32,
+    pub total_debt: i128,
+    pub debt_ceiling: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent(topics = ["borrow_commit_create"])]
+#[derive(Clone, Debug)]
+pub struct BorrowCommitmentCreatedEvent {
+    #[topic]
+    pub commitment_id: u64,
+    pub owner: Address,
+    pub borrow_asset: Address,
+    pub borrow_amount: i128,
+    pub expiry: u64,
+}
+
+#[contractevent(topics = ["borrow_commit_cancel"])]
+#[derive(Clone, Debug)]
+pub struct BorrowCommitmentCancelledEvent {
+    #[topic]
+    pub commitment_id: u64,
+    pub owner: Address,
+}
+
+#[contractevent(topics = ["borrow_commit_exec"])]
+#[derive(Clone, Debug)]
+pub struct BorrowCommitmentExecutedEvent {
+    #[topic]
+    pub commitment_id: u64,
+    pub owner: Address,
+    pub borrowed_amount: i128,
+    pub collateral_amount: i128,
 }
 
 // ─── Data store contract ────────────────────────────────────────────────────
@@ -201,4 +267,14 @@ pub struct UpgradeRollbackEvent {
     #[topic]
     pub proposal_id: u64,
     pub prev_version: u32,
+}
+
+#[allow(deprecated)]
+pub fn emit_bad_debt(env: &Env, user: &Address, amount: i128) {
+    env.events().publish(("bad_debt",), (user.clone(), amount));
+}
+
+#[allow(deprecated)]
+pub fn emit_bad_debt_recovered(env: &Env, amount: i128) {
+    env.events().publish(("bad_debt_recovered",), (amount,));
 }

@@ -361,7 +361,59 @@ impl CacheService {
         let result: Result<Option<String>, RedisError> = self.client.get("health_check_key").await;
         result.is_ok()
     }
+    /// Generate cache key for count statistics
+    fn count_stats_key(cache_key: &str) -> String {
+        format!("count_stats:{}", cache_key)
+    }
 
+    /// Cache event count statistics
+    ///
+    /// # Arguments
+    /// * `cache_key` - Cache key identifier
+    /// * `stats` - Statistics to cache
+    pub async fn cache_count_stats(
+        &mut self,
+        cache_key: &str,
+        stats: &[(String, String, i64)],
+    ) -> IndexerResult<()> {
+        let key = Self::count_stats_key(cache_key);
+        let value = serde_json::to_string(stats)?;
+
+        self.client
+            .set_ex::<_, _, ()>(&key, value, self.stats_ttl)
+            .await
+            .map_err(|e| IndexerError::Cache(e))?;
+
+        Ok(())
+    }
+
+    /// Get cached count statistics
+    ///
+    /// # Arguments
+    /// * `cache_key` - Cache key identifier
+    ///
+    /// # Returns
+    /// Cached statistics if found
+    pub async fn get_cached_count_stats(
+        &mut self,
+        cache_key: &str,
+    ) -> IndexerResult<Option<Vec<(String, String, i64)>>> {
+        let key = Self::count_stats_key(cache_key);
+
+        let value: Option<String> = self
+            .client
+            .get(&key)
+            .await
+            .map_err(|e| IndexerError::Cache(e))?;
+
+        match value {
+            Some(json) => {
+                let stats: Vec<(String, String, i64)> = serde_json::from_str(&json)?;
+                Ok(Some(stats))
+            }
+            None => Ok(None),
+        }
+    }
     /// Clear all cache entries (use with caution!)
     pub async fn clear_all(&mut self) -> IndexerResult<()> {
         redis::cmd("FLUSHDB")

@@ -2,7 +2,7 @@
  * Load tests for provider rate limiting under concurrent requests.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { BasePriceProvider } from '../src/providers/base-provider.js';
 import type { RawPriceData } from '../src/types/index.js';
 
@@ -58,5 +58,39 @@ describe('Oracle rate limiting load tests', () => {
     const inFirstWindow = provider.completionTimes.filter((t) => t - start < windowMs).length;
     expect(inFirstWindow).toBeLessThanOrEqual(maxRequests);
     expect(provider.completionTimes).toHaveLength(12);
+  });
+
+  it('prevents boundary bursts (moving window, inclusive)', async () => {
+    const maxRequests = 3;
+    const windowMs = 100;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+
+    const provider = new RateLimitTestProvider(maxRequests, windowMs);
+
+    // First burst: fills the limiter.
+    await Promise.all(Array.from({ length: maxRequests }, () => provider.fetchPrice('XLM')));
+    expect(provider.completionTimes).toHaveLength(maxRequests);
+    expect(provider.completionTimes.every((t) => t === 0)).toBe(true);
+
+    // Second burst starts just before the boundary. A fixed-window limiter
+    // can let this burst through immediately at t=100; the moving window
+    // should delay it past t=100.
+    vi.setSystemTime(windowMs - 1); // 99
+    const secondBurst = Promise.all(
+      Array.from({ length: maxRequests }, () => provider.fetchPrice('XLM'))
+    );
+
+    // Drive timers enough for the queued sleeps to resolve.
+    await vi.advanceTimersByTimeAsync(10);
+    await secondBurst;
+
+    expect(provider.completionTimes).toHaveLength(maxRequests * 2);
+
+    const withinInclusiveBoundary = provider.completionTimes.filter((t) => t <= windowMs).length;
+    expect(withinInclusiveBoundary).toBeLessThanOrEqual(maxRequests);
+
+    vi.useRealTimers();
   });
 });

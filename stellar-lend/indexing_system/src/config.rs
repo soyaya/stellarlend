@@ -36,7 +36,7 @@ pub struct IndexerConfig {
     /// Number of confirmations to wait before indexing
     pub confirmations: u64,
 
-    /// Batch size for fetching logs
+    /// Batch size for fetching logs (blocks per task)
     pub batch_size: u64,
 
     /// Poll interval in seconds
@@ -50,6 +50,14 @@ pub struct IndexerConfig {
 
     /// Enable real-time updates via Redis pub/sub
     pub enable_realtime: bool,
+
+    /// Number of parallel worker tasks for block processing.
+    /// Defaults to 4.  Set higher for chains with many events per block.
+    pub worker_count: usize,
+
+    /// Block backlog (in blocks) above which a warning is emitted.
+    /// Defaults to 1000.
+    pub backlog_alert_threshold: u64,
 }
 
 /// Database configuration
@@ -96,6 +104,8 @@ impl Default for Config {
                 max_retries: 3,
                 retry_delay_ms: 1000,
                 enable_realtime: true,
+                worker_count: 4,
+                backlog_alert_threshold: 1000,
             },
             database: DatabaseConfig {
                 url: "postgresql://user:password@localhost/indexer".to_string(),

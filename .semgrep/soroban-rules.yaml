@@ -1,0 +1,28 @@
+rules:
+  - id: require-auth-check
+    patterns:
+      - pattern: pub fn $F(..., $ENV: Env, ..., $USER: Address, ...) { ... }
+      - pattern-not-inside: |
+          pub fn $F(..., $ENV: Env, ..., $USER: Address, ...) {
+            ...
+            $USER.require_auth();
+            ...
+          }
+    message: "Protocol pattern violation: Functions taking a user Address should typically enforce authorization using $USER.require_auth(). Ensure this is intentional if omitted."
+    languages: [rust]
+    severity: WARNING
+
+  - id: check-reentrancy
+    patterns:
+      - pattern: |
+          $ENV.invoke_contract(...)
+      - pattern-inside: |
+          pub fn $F(...) {
+            ...
+            $ENV.invoke_contract(...);
+            ...
+            $STATE.set(...);
+          }
+    message: "Potential reentrancy vulnerability: State mutation occurs after an external contract invocation. Follow the Checks-Effects-Interactions pattern."
+    languages: [rust]
+    severity: ERROR

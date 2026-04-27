@@ -22,6 +22,7 @@
 #                     Default: testnet
 #   --build           Run scripts/build.sh before deploying
 #   --amm             Also deploy the AMM contract
+#   --verify          Verify deployed contracts against source code
 #   --help            Print this help and exit
 #
 # Outputs:
@@ -43,7 +44,247 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 STELLAR_LEND_DIR="$REPO_ROOT/stellar-lend"
 WASM_DIR="$STELLAR_LEND_DIR/target/wasm32-unknown-unknown/release"
 
+sha256_file() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
 # ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+DO_VERIFY=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --verify)   DO_VERIFY=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="newString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+DO_VERIFY=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --verify)   DO_VERIFY=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="newString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+DO_VERIFY=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --verify)   DO_VERIFY=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="newString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+DO_VERIFY=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --verify)   DO_VERIFY=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="oldString"># ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+NETWORK="${STELLAR_NETWORK:-testnet}"
+DO_BUILD=false
+DEPLOY_AMM=false
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --network)  NETWORK="$2"; shift 2 ;;
+    --build)    DO_BUILD=true;  shift ;;
+    --amm)      DEPLOY_AMM=true; shift ;;
+    --help)
+      sed -n '2,50p' "$0"   # print the header comment
+      exit 0
+      ;;
+    *)<parameter name="old_string"># ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
 NETWORK="${STELLAR_NETWORK:-testnet}"
@@ -145,6 +386,9 @@ fi
 DEPLOY_DIR="$SCRIPT_DIR/deployed/$NETWORK"
 mkdir -p "$DEPLOY_DIR"
 
+MANIFEST_FILE="$DEPLOY_DIR/deployment-manifest.json"
+PREVIOUS_MANIFEST_FILE="$DEPLOY_DIR/deployment-manifest.previous.json"
+
 # ---------------------------------------------------------------------------
 # Helper: deploy a single contract and save its ID
 # ---------------------------------------------------------------------------
@@ -189,6 +433,67 @@ if $DEPLOY_AMM; then
   AMM_CONTRACT_ID="$(deploy_contract "StellarLend AMM Contract" "$AMM_WASM" "$AMM_ID_FILE")"
 fi
 
+if [[ -f "$MANIFEST_FILE" ]]; then
+  cp "$MANIFEST_FILE" "$PREVIOUS_MANIFEST_FILE"
+fi
+
+LENDING_WASM_SHA256="$(sha256_file "$LENDING_WASM")"
+
+cat > "$MANIFEST_FILE" <<EOF
+{
+  "generated_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "network": "$NETWORK",
+  "rpc_url": "${STELLAR_RPC_URL:-}",
+  "verification_status": "$VERIFICATION_STATUS",
+  "lending": {
+    "contract_id": "$LENDING_CONTRACT_ID",
+    "wasm": "$LENDING_WASM",
+    "sha256": "$LENDING_WASM_SHA256",
+    "verified": ${LENDING_VERIFIED:-false}
+  }$(if $DEPLOY_AMM; then cat <<AMM
+,
+  "amm": {
+    "contract_id": "$AMM_CONTRACT_ID",
+    "wasm": "$AMM_WASM",
+    "sha256": "$(sha256_file "$AMM_WASM")",
+    "verified": ${AMM_VERIFIED:-false}
+  }
+AMM
+fi)
+}
+EOF
+
+# ---------------------------------------------------------------------------
+# Optional verification step
+# ---------------------------------------------------------------------------
+VERIFICATION_STATUS="not_verified"
+if $DO_VERIFY; then
+  echo ""
+  echo ">>> Verifying lending contract"
+  if "$SCRIPT_DIR/verify-contract.sh" --contract-id "$LENDING_CONTRACT_ID" --source "$STELLAR_LEND_DIR/contracts/hello-world" --network "$NETWORK"; then
+    LENDING_VERIFIED=true
+  else
+    LENDING_VERIFIED=false
+  fi
+
+  AMM_VERIFIED=true
+  if $DEPLOY_AMM; then
+    echo ""
+    echo ">>> Verifying AMM contract"
+    if "$SCRIPT_DIR/verify-contract.sh" --contract-id "$AMM_CONTRACT_ID" --source "$STELLAR_LEND_DIR/contracts/amm" --network "$NETWORK"; then
+      AMM_VERIFIED=true
+    else
+      AMM_VERIFIED=false
+    fi
+  fi
+
+  if $LENDING_VERIFIED && ($DEPLOY_AMM && $AMM_VERIFIED || !$DEPLOY_AMM); then
+    VERIFICATION_STATUS="verified"
+  else
+    VERIFICATION_STATUS="verification_failed"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
@@ -200,6 +505,7 @@ echo " Lending contract ID  : $LENDING_CONTRACT_ID"
 if $DEPLOY_AMM; then
   echo " AMM contract ID      : $AMM_CONTRACT_ID"
 fi
+echo " Deployment manifest  : $MANIFEST_FILE"
 echo ""
 echo " NEXT STEP: Initialize the deployed contract(s)."
 echo " Run: ./scripts/init.sh --network $NETWORK"

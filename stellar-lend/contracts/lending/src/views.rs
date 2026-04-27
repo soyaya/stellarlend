@@ -9,11 +9,11 @@
 //! - Collateral and debt values depend on the oracle; ensure the oracle is correct and trusted.
 //! - Health factor uses the admin-set liquidation threshold consistently.
 
-use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, I256};
+use soroban_sdk::{contracttype, Address, Env, IntoVal, Symbol, Vec, I256};
 
 use crate::borrow::{
-    get_liquidation_threshold_bps, get_oracle, get_user_collateral, get_user_debt,
-    BorrowCollateral, DebtPosition,
+    get_close_factor_bps, get_liquidation_incentive_bps, get_liquidation_threshold_bps, get_oracle,
+    get_stablecoin_config, get_user_collateral, get_user_debt, BorrowCollateral, DebtPosition,
 };
 
 /// Scale for oracle price (1e8 = one unit). Value = amount * price / PRICE_SCALE.
@@ -42,6 +42,36 @@ pub struct UserPositionSummary {
     pub debt_value: i128,
     /// Health factor scaled by 10000 (10000 = 1.0). 0 if oracle not set or unconfigured.
     pub health_factor: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtocolMetrics {
+    pub total_value_locked: i128,
+    pub total_deposits: i128,
+    pub total_borrows: i128,
+    pub utilization_rate: i128,
+    pub total_users: u32,
+    pub total_transactions: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StablecoinAssetStats {
+    pub asset: Address,
+    pub price: i128,
+    pub target_price: i128,
+    pub deviation_bps: i128,
+    pub stability_fee_bps: i128,
+    pub is_depegged: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProtocolReport {
+    pub metrics: ProtocolMetrics,
+    pub stablecoin_stats: Vec<StablecoinAssetStats>,
+    pub timestamp: u64,
 }
 
 /// Fetches price for `asset` from the configured oracle contract.
@@ -224,6 +254,62 @@ pub fn get_health_factor(env: &Env, user: &Address) -> i128 {
     compute_health_factor(env, cv, dv, debt_balance > 0)
 }
 
+/// Returns the maximum debt amount that can be liquidated for `user` in one call.
+///
+/// Returns 0 when:
+/// - User has no debt
+/// - Position is healthy (health factor ≥ 1.0, i.e. ≥ `HEALTH_FACTOR_SCALE`)
+/// - Oracle is not configured (health factor cannot be computed)
+///
+/// Formula: `total_debt * close_factor_bps / 10000`
+///
+/// # Security
+/// Read-only; no state change. Relies on oracle for health factor; 0 is returned
+/// if oracle is absent so the caller cannot liquidate without price data.
+pub fn get_max_liquidatable_amount(env: &Env, user: &Address) -> i128 {
+    let position = get_user_debt(env, user);
+    let total_debt = position
+        .borrowed_amount
+        .checked_add(position.interest_accrued)
+        .unwrap_or(0);
+    if total_debt <= 0 {
+        return 0;
+    }
+    let collateral = get_user_collateral(env, user);
+    let cv = collateral_value(env, &collateral);
+    let dv = debt_value(env, &position);
+    let hf = compute_health_factor(env, cv, dv, true);
+    // hf == 0 means oracle is missing; healthy or unknown → not liquidatable
+    if hf == 0 || hf >= HEALTH_FACTOR_SCALE {
+        return 0;
+    }
+    let close_factor = get_close_factor_bps(env);
+    let debt_256 = I256::from_i128(env, total_debt);
+    let cf_256 = I256::from_i128(env, close_factor);
+    let result = debt_256.mul(&cf_256).div(&I256::from_i128(env, 10000));
+    result.to_i128().unwrap_or(0)
+}
+
+/// Returns the collateral bonus amount a liquidator receives for repaying `repay_amount` of debt.
+///
+/// Formula: `repay_amount * (10000 + incentive_bps) / 10000`
+///
+/// Returns 0 for zero or negative `repay_amount`.
+/// Uses saturating semantics: returns `i128::MAX` on overflow instead of panicking.
+///
+/// # Security
+/// Read-only; no state change. Incentive bounds are enforced by admin setter (0–10000 bps).
+pub fn get_liquidation_incentive_amount(env: &Env, repay_amount: i128) -> i128 {
+    if repay_amount <= 0 {
+        return 0;
+    }
+    let incentive_bps = get_liquidation_incentive_bps(env);
+    let amount_256 = I256::from_i128(env, repay_amount);
+    let scale_256 = I256::from_i128(env, 10000_i128 + incentive_bps);
+    let result = amount_256.mul(&scale_256).div(&I256::from_i128(env, 10000));
+    result.to_i128().unwrap_or(i128::MAX)
+}
+
 /// Returns a full position summary for the user (collateral balance/value, debt balance/value, health factor).
 ///
 /// Single read-only call for frontends and liquidation bots.
@@ -248,5 +334,53 @@ pub fn get_user_position(env: &Env, user: &Address) -> UserPositionSummary {
         debt_balance,
         debt_value: debt_value_usd,
         health_factor,
+    }
+}
+
+pub fn get_protocol_report(env: &Env, stablecoin_assets: Vec<Address>) -> ProtocolReport {
+    // Basic metrics (stubbed or partially implemented for now)
+    let metrics = ProtocolMetrics {
+        total_value_locked: 0, // Would need to aggregate across all users/assets
+        total_deposits: 0,
+        total_borrows: 0,
+        utilization_rate: 0,
+        total_users: 0,
+        total_transactions: 0,
+    };
+
+    let mut stablecoin_stats = Vec::new(env);
+    if let Some(oracle) = get_oracle(env) {
+        for asset in stablecoin_assets.iter() {
+            if let Some(config) = get_stablecoin_config(env, &asset) {
+                let price = env.invoke_contract::<i128>(
+                    &oracle,
+                    &soroban_sdk::Symbol::new(env, "price"),
+                    (asset.clone(),).into_val(env),
+                );
+                let deviation = config.target_price.saturating_sub(price);
+                let deviation_bps = if config.target_price > 0 {
+                    deviation
+                        .saturating_mul(10000)
+                        .saturating_div(config.target_price)
+                } else {
+                    0
+                };
+
+                stablecoin_stats.push_back(StablecoinAssetStats {
+                    asset,
+                    price,
+                    target_price: config.target_price,
+                    deviation_bps,
+                    stability_fee_bps: config.stability_fee_bps,
+                    is_depegged: deviation_bps > config.peg_threshold_bps,
+                });
+            }
+        }
+    }
+
+    ProtocolReport {
+        metrics,
+        stablecoin_stats,
+        timestamp: env.ledger().timestamp(),
     }
 }

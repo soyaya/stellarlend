@@ -22,6 +22,9 @@ export const config = {
     sorobanRpcUrl: process.env.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
     networkPassphrase: process.env.NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
     contractId: process.env.CONTRACT_ID || '',
+    readOnlySimulationAccount:
+      process.env.READ_ONLY_SIMULATION_ACCOUNT ||
+      'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
   },
   auth: {
     jwtSecret: process.env.JWT_SECRET as string,
@@ -40,6 +43,23 @@ export const config = {
     retryInitialDelayMs: parseInt(process.env.RETRY_INITIAL_DELAY_MS || '1000', 10),
     retryMaxDelayMs: parseInt(process.env.RETRY_MAX_DELAY_MS || '10000', 10),
   },
+  bodySizeLimit: {
+    /** Maximum request body size (e.g. '100kb', '1mb'). Defaults to 100kb. */
+    limit: process.env.BODY_SIZE_LIMIT || '100kb',
+  },
+  pagination: {
+    defaultLimit: parseInt(process.env.PAGINATION_DEFAULT_LIMIT || '10', 10),
+    maxLimit: parseInt(process.env.PAGINATION_MAX_LIMIT || '100', 10),
+  },
+  cache: {
+    redisEnabled: process.env.REDIS_ENABLED === 'true',
+    redisUrl: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+    idempotencyTtlMs: parseInt(process.env.IDEMPOTENCY_TTL_MS || '86400000', 10),
+    idempotencyMaxEntries: parseInt(process.env.IDEMPOTENCY_MAX_ENTRIES || '1000', 10),
+    protocolStatsTtlMs: parseInt(process.env.PROTOCOL_STATS_TTL_MS || '30000', 10),
+    positionTtlMs: parseInt(process.env.POSITION_CACHE_TTL_MS || '15000', 10),
+    poolTtlMs: parseInt(process.env.POOL_CACHE_TTL_MS || '30000', 10),
+  },
   ws: {
     /** Milliseconds between price poll cycles (default 30 s) */
     priceUpdateIntervalMs: parseInt(process.env.WS_PRICE_UPDATE_INTERVAL_MS || '30000', 10),
@@ -47,5 +67,8 @@ export const config = {
     heartbeatIntervalMs: parseInt(process.env.WS_HEARTBEAT_INTERVAL_MS || '30000', 10),
     /** Optional oracle service base URL for price data (e.g. http://localhost:4000) */
     oracleApiUrl: process.env.ORACLE_API_URL || '',
+  },
+  emergency: {
+    autoPauseFailureThreshold: parseInt(process.env.AUTO_PAUSE_FAILURE_THRESHOLD || '5', 10),
   },
 };

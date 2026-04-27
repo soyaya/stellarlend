@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ApiError } from '../utils/errors';
+import { ApiError, ErrorCode } from '../utils/errors';
 import logger from '../utils/logger';
 
 export const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
@@ -10,22 +10,25 @@ export const errorHandler = (err: Error, req: Request, res: Response, next: Next
     method: req.method,
   });
 
+  if (err instanceof SyntaxError) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid JSON',
+      code: ErrorCode.VALIDATION_ERROR,
+    });
+  }
+
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
       success: false,
       error: err.message,
-    });
-  }
-
-  if (err instanceof SyntaxError && 'body' in err) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid JSON',
+      code: err.code,
     });
   }
 
   return res.status(500).json({
     success: false,
     error: 'Internal server error',
+    code: ErrorCode.INTERNAL_SERVER_ERROR,
   });
 };

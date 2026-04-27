@@ -736,9 +736,96 @@ fn test_accrued_interest_extreme_overflow() {
     let current_time = 100 * SECONDS_PER_YEAR;
 
     let result = calculate_accrued_interest(principal, last_accrual, current_time, rate_bps);
-    
+
     // Should return Overflow error instead of panicking
     assert!(result.is_err());
+}
+
+/// Test long-horizon accrual remains monotonic and bounded at maximum configured rate
+#[test]
+fn test_accrued_interest_long_horizon_monotonic_and_bounded() {
+    let principal = 1_000_000_000_000i128;
+    let rate_bps = 10_000i128; // 100% APR (ceiling)
+    let checkpoints = [
+        SECONDS_PER_YEAR,
+        10 * SECONDS_PER_YEAR,
+        50 * SECONDS_PER_YEAR,
+        200 * SECONDS_PER_YEAR,
+    ];
+
+    let mut previous_interest = 0i128;
+    for &current_time in &checkpoints {
+        let interest = calculate_accrued_interest(principal, 0, current_time, rate_bps).unwrap();
+        assert!(interest >= previous_interest);
+
+        // At 100% APR and whole-year checkpoints, accrued interest should not exceed
+        // principal * years_elapsed.
+        let years_elapsed = (current_time / SECONDS_PER_YEAR) as i128;
+        let upper_bound = principal.checked_mul(years_elapsed).unwrap();
+        assert!(interest <= upper_bound);
+
+        previous_interest = interest;
+    }
+}
+
+/// Test overflow boundary for long-horizon accrual: max-safe elapsed time succeeds, next second fails
+#[test]
+fn test_accrued_interest_long_horizon_overflow_boundary() {
+    let principal = 1_000_000_000_000_000i128;
+    let rate_bps = 10_000i128;
+    let denominator = principal.checked_mul(rate_bps).unwrap();
+
+    let max_safe_elapsed = (i128::MAX / denominator) as u64;
+    assert!(max_safe_elapsed < u64::MAX);
+
+    let safe_result = calculate_accrued_interest(principal, 0, max_safe_elapsed, rate_bps);
+    assert!(safe_result.is_ok());
+
+    let overflow_result = calculate_accrued_interest(principal, 0, max_safe_elapsed + 1, rate_bps);
+    assert!(overflow_result.is_err());
+}
+
+/// Test extreme utilization and aggressive configuration still clamp borrow rate at configured ceiling
+#[test]
+fn test_borrow_rate_clamped_at_ceiling_under_extreme_configuration() {
+    let env = create_test_env();
+    let (contract_id, admin, client) = setup_contract_with_admin(&env);
+
+    // Force 100% effective utilization via cap path (borrows > deposits)
+    set_protocol_analytics(&env, &contract_id, 10_000, 20_000);
+
+    // Configure very aggressive slopes and emergency boost
+    client.update_interest_rate_config(
+        &admin,
+        &Some(10_000),
+        &Some(1),
+        &Some(1_000_000),
+        &Some(1_000_000),
+        &Some(50),
+        &Some(10_000),
+        &Some(200),
+    );
+    client.set_emergency_rate_adjustment(&admin, &10_000);
+
+    let borrow_rate = client.get_borrow_rate();
+    let supply_rate = client.get_supply_rate();
+
+    assert_eq!(borrow_rate, 10_000);
+    assert!(supply_rate >= 50);
+    assert!(supply_rate <= 10_000);
+}
+
+/// Test extreme negative emergency adjustment cannot push borrow rate below configured floor
+#[test]
+fn test_borrow_rate_clamped_at_floor_under_extreme_negative_adjustment() {
+    let env = create_test_env();
+    let (contract_id, admin, client) = setup_contract_with_admin(&env);
+
+    set_protocol_analytics(&env, &contract_id, 10_000, 0);
+    client.set_emergency_rate_adjustment(&admin, &-10_000);
+
+    let borrow_rate = client.get_borrow_rate();
+    assert_eq!(borrow_rate, 50);
 }
 
 // =============================================================================

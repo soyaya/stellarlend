@@ -174,3 +174,81 @@ fn test_pause_events() {
     let topic: Symbol = Symbol::try_from_val(&env, &last_event.1.get(0).unwrap()).unwrap();
     assert_eq!(topic, Symbol::new(&env, "pause_event"));
 }
+
+#[test]
+fn test_pause_flash_loan_granular() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LendingContract, ());
+    let client = LendingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
+
+    // Pause flash loan
+    client.set_pause(&admin, &PauseType::FlashLoan, &true);
+
+    // Flash loan should fail with FlashLoanPaused
+    let receiver = Address::generate(&env);
+    let asset = Address::generate(&env);
+    let result = client.try_flash_loan(&receiver, &asset, &1000, &soroban_sdk::Bytes::new(&env));
+    assert_eq!(
+        result,
+        Err(Ok(crate::flash_loan::FlashLoanError::FlashLoanPaused))
+    );
+
+    // Other operations should still work
+    let user = Address::generate(&env);
+    let collateral_asset = Address::generate(&env);
+    client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
+
+    // Unpause flash loan
+    client.set_pause(&admin, &PauseType::FlashLoan, &false);
+}
+
+#[test]
+fn test_global_pause_includes_flash_loan() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LendingContract, ());
+    let client = LendingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
+
+    // Pause all
+    client.set_pause(&admin, &PauseType::All, &true);
+
+    let receiver = Address::generate(&env);
+    let asset = Address::generate(&env);
+    let result = client.try_flash_loan(&receiver, &asset, &1000, &soroban_sdk::Bytes::new(&env));
+    assert_eq!(
+        result,
+        Err(Ok(crate::flash_loan::FlashLoanError::FlashLoanPaused))
+    );
+
+    // Unpause all
+    client.set_pause(&admin, &PauseType::All, &false);
+}
+
+#[test]
+fn test_flash_loan_pause_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LendingContract, ());
+    let client = LendingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
+
+    client.set_pause(&admin, &PauseType::FlashLoan, &true);
+
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+    assert_eq!(last_event.0, contract_id);
+    let topic: Symbol = Symbol::try_from_val(&env, &last_event.1.get(0).unwrap()).unwrap();
+    assert_eq!(topic, Symbol::new(&env, "pause_event"));
+}

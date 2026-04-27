@@ -20,6 +20,7 @@ use crate::data_store::{DataStore, DataStoreClient};
 // ═══════════════════════════════════════════════════════
 
 /// Spin up a fresh Env + registered contract, returning the client.
+#[allow(deprecated)]
 fn setup() -> (Env, DataStoreClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();

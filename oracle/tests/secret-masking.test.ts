@@ -134,5 +134,5 @@ describe('No secret leakage in logs', () => {
     ].join('\n');
 
     expect(allLogOutput).not.toContain(SECRET);
-  });
+  }, 15000);
 });

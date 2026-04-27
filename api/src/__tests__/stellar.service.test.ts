@@ -1,4 +1,5 @@
-import { StellarService } from '../services/stellar.service';
+import { StellarService, clearProtocolStatsCache } from '../services/stellar.service';
+import { redisCacheService } from '../services/redisCache.service';
 import axios from 'axios';
 jest.mock('axios');
 
@@ -126,6 +127,7 @@ const mockPreparedTx = {
 
 const mockSorobanServer = {
   prepareTransaction: jest.fn().mockResolvedValue(mockPreparedTx),
+  simulateTransaction: jest.fn(),
   getHealth: jest.fn().mockResolvedValue({}),
 };
 
@@ -147,9 +149,15 @@ jest.mock('@stellar/stellar-sdk', () => ({
   })),
   Address: jest.fn().mockImplementation(() => ({ toScVal: jest.fn().mockReturnValue({}) })),
   nativeToScVal: jest.fn().mockReturnValue({}),
+  scValToNative: jest.fn().mockImplementation((value) => value),
   BASE_FEE: '100',
   Networks: { TESTNET: 'Test SDF Network ; September 2015' },
-  xdr: { ScVal: { scvVoid: jest.fn().mockReturnValue({}) } },
+  xdr: {
+    ScVal: {
+      scvVoid: jest.fn().mockReturnValue({}),
+      fromXDR: jest.fn().mockImplementation((value) => value),
+    },
+  },
 }));
 
 jest.mock('@stellar/stellar-sdk/rpc', () => ({
@@ -169,16 +177,22 @@ describe('StellarService', () => {
   // so Soroban mocks are fresh without touching axios implementations.
   // -----------------------------------------------------------------------
   beforeEach(() => {
+    clearProtocolStatsCache();
+    redisCacheService.clearAllForTests();
     service = new StellarService();
     // Reset only the Soroban mocks — do NOT call jest.clearAllMocks() here
     // because it would erase the axios implementations set by the outer
     // beforeEach, leaving every axios call with no implementation.
     mockSorobanServer.prepareTransaction.mockReset();
+    mockSorobanServer.simulateTransaction.mockReset();
     mockSorobanServer.getHealth.mockReset();
     mockPreparedTx.sign.mockReset();
     mockPreparedTx.toXDR.mockReset();
     mockPreparedTx.toXDR.mockReturnValue('unsigned_tx_xdr');
     mockSorobanServer.prepareTransaction.mockResolvedValue(mockPreparedTx);
+    mockSorobanServer.simulateTransaction.mockResolvedValue({
+      result: { retval: { metrics: { total_deposits: 0n } } },
+    });
     mockSorobanServer.getHealth.mockResolvedValue({});
   });
 
@@ -230,6 +244,29 @@ describe('StellarService', () => {
       expect(result.success).toBe(true);
       expect(result.transactionHash).toBe('tx_hash_123');
       expect(result.ledger).toBe(12345);
+    });
+
+    it('returns failure when provider reports unsuccessful on-chain execution (HTTP 200)', async () => {
+      mockedAxios.post.mockResolvedValue({
+        data: {
+          hash: 'tx_hash_456',
+          ledger: 12346,
+          successful: false,
+          extras: { result_codes: { transaction: 'tx_bad_seq' } },
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: { url: '' },
+      });
+
+      const result = await service.submitTransaction('mock_tx_xdr');
+
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('failed');
+      expect(result.transactionHash).toBe('tx_hash_456');
+      expect(result.error).toBe('Transaction failed on-chain');
+      expect(result.details).toBeDefined();
     });
 
     it('should handle transaction submission failure', async () => {
@@ -510,6 +547,58 @@ describe('StellarService', () => {
   });
 
   // -----------------------------------------------------------------------
+  describe('getProtocolStats', () => {
+    it('should fetch and normalize protocol stats from the contract report', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        result: {
+          retval: {
+            metrics: {
+              total_deposits: 1_000_000n,
+              total_borrows: 500_000n,
+              utilization_rate: 5000n,
+              total_users: 150n,
+              total_value_locked: 1_500_000n,
+            },
+          },
+        },
+      });
+
+      const result = await service.getProtocolStats();
+
+      expect(result).toEqual({
+        totalDeposits: '1000000',
+        totalBorrows: '500000',
+        utilizationRate: '0.50',
+        numberOfUsers: 150,
+        tvl: '1500000',
+      });
+      expect(mockSorobanServer.simulateTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return cached protocol stats within the TTL window', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        result: {
+          retval: {
+            metrics: {
+              total_deposits: 42n,
+              total_borrows: 21n,
+              utilization_rate: 5000n,
+              total_users: 3n,
+              total_value_locked: 84n,
+            },
+          },
+        },
+      });
+
+      const first = await service.getProtocolStats();
+      const second = await service.getProtocolStats();
+
+      expect(first).toEqual(second);
+      expect(mockSorobanServer.simulateTransaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   describe('buildUnsignedTransaction', () => {
     it.each(['deposit', 'borrow', 'repay', 'withdraw'] as const)(
       'should build unsigned %s transaction without requiring a secret key',
@@ -536,5 +625,145 @@ describe('StellarService', () => {
         expect(mockSorobanServer.prepareTransaction).toHaveBeenCalled();
       }
     );
+  });
+
+  describe('estimateGas', () => {
+    it('returns resource estimates from Soroban simulation', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        cost: { cpuInsns: '12345', memBytes: '678' },
+        minResourceFee: '999',
+      });
+
+      const result = await service.estimateGas(
+        'deposit',
+        'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        undefined,
+        '1000000'
+      );
+
+      expect(result).toEqual({
+        cpuInstructions: '12345',
+        memoryBytes: '678',
+        minResourceFee: '999',
+      });
+    });
+
+    it('uses default estimate values when simulation omits optional cost fields', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({});
+
+      const result = await service.estimateGas(
+        'borrow',
+        'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY',
+        '2500000'
+      );
+
+      expect(result).toEqual({
+        cpuInstructions: '0',
+        memoryBytes: '0',
+        minResourceFee: '0',
+      });
+    });
+
+    it('throws an InternalServerError when simulation reports an error', async () => {
+      mockSorobanServer.simulateTransaction.mockResolvedValue({
+        error: 'resource limit exceeded',
+      });
+
+      await expect(
+        service.estimateGas(
+          'withdraw',
+          'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+          undefined,
+          '1000000'
+        )
+      ).rejects.toThrow('Simulation failed: resource limit exceeded');
+    });
+  });
+
+  describe('transaction history service paths', () => {
+    const userAddress = `G${'A'.repeat(56)}`;
+
+    const lendingTransaction = {
+      hash: 'tx-history-1',
+      created_at: '2026-04-25T00:00:00Z',
+      successful: true,
+      ledger: 123,
+      memo: 'deposit memo',
+      operations: [
+        {
+          type: 'invoke_contract_function',
+          contract_id: 'test-contract-id',
+          function_name: 'deposit_collateral',
+          function_parameters: [{ value: userAddress }, { value: 'asset-1' }, { value: '5000' }],
+        },
+      ],
+    };
+
+    it('maps Horizon transactions and pagination metadata for lending history', async () => {
+      mockedAxios.get.mockResolvedValue({
+        data: {
+          _embedded: { records: [lendingTransaction, { operations: [] }] },
+          _links: {
+            next: {
+              href: 'https://horizon.example/accounts/user/transactions?cursor=next-cursor',
+            },
+          },
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: { url: '' },
+      });
+
+      const result = await service.getTransactionHistory({
+        userAddress,
+        limit: '5',
+        cursor: 'start-cursor',
+      } as any);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        transactionHash: 'tx-history-1',
+        type: 'deposit',
+        amount: '5000',
+        assetAddress: 'asset-1',
+        status: 'success',
+        ledger: 123,
+      });
+      expect(result.pagination.hasMore).toBe(true);
+      expect(result.pagination.cursor).toBeDefined();
+      expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining('/transactions?'));
+    });
+
+    it('streams lending transactions across paginated Horizon responses', async () => {
+      mockedAxios.get
+        .mockResolvedValueOnce({
+          data: {
+            _embedded: { records: [lendingTransaction] },
+            _links: { next: { href: 'https://horizon.example/next-page' } },
+          },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: { url: '' },
+        })
+        .mockResolvedValueOnce({
+          data: { _embedded: { records: [] }, _links: {} },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: { url: '' },
+        });
+
+      const streamed = [];
+      for await (const tx of service.streamTransactionHistory(userAddress, 2)) {
+        streamed.push(tx);
+      }
+
+      expect(streamed).toHaveLength(1);
+      expect(streamed[0]).toMatchObject({ transactionHash: 'tx-history-1', type: 'deposit' });
+      expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+    });
   });
 });

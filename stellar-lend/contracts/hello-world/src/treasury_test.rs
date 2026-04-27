@@ -66,7 +66,7 @@ fn test_set_fee_config_non_admin_rejected() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #6)")]
+#[should_panic(expected = "Error(Contract, #26)")]
 fn test_set_fee_config_interest_out_of_range() {
     let (env, admin, contract_id) = setup();
     let client = HelloContractClient::new(&env, &contract_id);
@@ -74,7 +74,7 @@ fn test_set_fee_config_interest_out_of_range() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #6)")]
+#[should_panic(expected = "Error(Contract, #26)")]
 fn test_set_fee_config_liquidation_out_of_range() {
     let (env, admin, contract_id) = setup();
     let client = HelloContractClient::new(&env, &contract_id);
@@ -220,7 +220,7 @@ fn test_claim_reserves_non_admin_rejected() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #3)")]
+#[should_panic(expected = "Error(Contract, #25)")]
 fn test_claim_reserves_exceeds_balance() {
     let (env, admin, contract_id) = setup();
     let client = HelloContractClient::new(&env, &contract_id);

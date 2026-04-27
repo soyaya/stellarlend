@@ -1,0 +1,20 @@
+[package]
+name = "stellarlend-benchmarks"
+version = "0.1.0"
+edition = "2021"
+description = "Comprehensive gas benchmark suite for StellarLend protocol contracts"
+
+[[bin]]
+name = "run_benchmarks"
+path = "src/main.rs"
+
+[dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+soroban-token-sdk = { workspace = true }
+stellarlend-lending = { path = "../contracts/lending", features = ["testutils"] }
+stellarlend-amm = { path = "../contracts/amm", features = ["testutils"] }
+bridge = { path = "../contracts/bridge", features = ["testutils"] }
+hello-world = { path = "../contracts/hello-world" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }

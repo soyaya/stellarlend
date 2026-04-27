@@ -9,7 +9,8 @@ import type { RawPriceData, PriceData, AggregatedPrice } from '../types/index.js
 import { BasePriceProvider } from '../providers/base-provider.js';
 import { PriceValidator } from './price-validator.js';
 import { PriceCache } from './cache.js';
-import { CircuitBreaker, createCircuitBreaker } from './circuit-breaker.js';
+import { PriceHistoryService } from './price-history.js';
+import { CircuitBreaker, CircuitState, createCircuitBreaker } from './circuit-breaker.js';
 import type { CircuitBreakerConfig, CircuitBreakerMetrics } from './circuit-breaker.js';
 import { scalePrice } from '../config.js';
 import { logger } from '../utils/logger.js';
@@ -38,6 +39,7 @@ export class PriceAggregator {
   private providers: BasePriceProvider[];
   private validator: PriceValidator;
   private cache: PriceCache;
+  private priceHistory: PriceHistoryService;
   private config: AggregatorConfig;
   private circuitBreakers: Map<string, CircuitBreaker>;
 
@@ -45,12 +47,14 @@ export class PriceAggregator {
     providers: BasePriceProvider[],
     validator: PriceValidator,
     cache: PriceCache,
+    priceHistory: PriceHistoryService,
     config: Partial<AggregatorConfig> = {}
   ) {
     this.providers = providers.filter((p) => p.isEnabled).sort((a, b) => a.priority - b.priority);
 
     this.validator = validator;
     this.cache = cache;
+    this.priceHistory = priceHistory;
     this.config = { ...DEFAULT_CONFIG, ...config };
 
     // Create one circuit breaker per provider
@@ -76,7 +80,7 @@ export class PriceAggregator {
   async getPrice(asset: string): Promise<AggregatedPrice | null> {
     const upperAsset = asset.toUpperCase();
 
-    const cachedPrice = this.cache.getPrice(upperAsset);
+    const cachedPrice = await this.cache.getPrice(upperAsset);
     if (cachedPrice !== undefined) {
       logger.debug(`Using cached price for ${upperAsset}`);
       return {
@@ -102,6 +106,9 @@ export class PriceAggregator {
 
     this.cache.setPrice(upperAsset, aggregated.price);
 
+    // Store in price history
+    this.priceHistory.addAggregatedPrice(aggregated);
+
     return aggregated;
   }
 
@@ -124,42 +131,53 @@ export class PriceAggregator {
   }
 
   /**
-   * Fetch price from providers with fallback logic.
-   * Skips providers whose circuit breaker is OPEN.
+   * Fetch price from providers with fallback logic
    */
   private async fetchWithFallback(asset: string): Promise<PriceData[]> {
     const validPrices: PriceData[] = [];
     const errors: Map<string, Error> = new Map();
 
     for (const provider of this.providers) {
-      const cb = this.circuitBreakers.get(provider.name)!;
-
-      if (!cb.isAllowed()) {
-        logger.warn(`Circuit breaker OPEN – skipping provider "${provider.name}" for ${asset}`, {
-          metrics: cb.getMetrics(),
-        });
-        continue;
-      }
-
       try {
+        const circuitBreaker = this.circuitBreakers.get(provider.name);
+
+        // Check circuit breaker state
+        if (circuitBreaker && !circuitBreaker.isAllowed()) {
+          logger.warn(`Circuit breaker OPEN for ${provider.name}, skipping`);
+          continue;
+        }
+
         const rawPrice = await provider.fetchPrice(asset);
         const validation = this.validator.validate(rawPrice);
 
         if (validation.isValid && validation.price) {
-          cb.recordSuccess();
           validPrices.push(validation.price);
+
+          // Record success for circuit breaker
+          if (circuitBreaker) {
+            circuitBreaker.recordSuccess();
+          }
+
           logger.debug(`Got valid price from ${provider.name} for ${asset}`, {
             price: validation.price.price.toString(),
           });
         } else {
-          // Validation failure counts as a provider failure
-          cb.recordFailure();
+          // Record failure for circuit breaker
+          if (circuitBreaker) {
+            circuitBreaker.recordFailure();
+          }
+
           logger.warn(`Invalid price from ${provider.name} for ${asset}`, {
             errors: validation.errors,
           });
         }
       } catch (error) {
-        cb.recordFailure();
+        // Record failure for circuit breaker
+        const circuitBreaker = this.circuitBreakers.get(provider.name);
+        if (circuitBreaker) {
+          circuitBreaker.recordFailure();
+        }
+
         errors.set(provider.name, error instanceof Error ? error : new Error(String(error)));
         logger.warn(`Provider ${provider.name} failed for ${asset}`, { error });
       }
@@ -256,6 +274,28 @@ export class PriceAggregator {
   }
 
   /**
+   * Get price history service
+   */
+  getPriceHistory(): PriceHistoryService {
+    return this.priceHistory;
+  }
+
+  /**
+   * Get circuit breaker metrics for all providers
+   */
+  getCircuitBreakerMetrics(): Array<
+    CircuitBreakerMetrics & { providerName: string; state: CircuitState }
+  > {
+    const metrics: CircuitBreakerMetrics[] = [];
+
+    for (const breaker of this.circuitBreakers.values()) {
+      metrics.push(breaker.getMetrics());
+    }
+
+    return metrics;
+  }
+
+  /**
    * Get list of enabled providers
    */
   getProviders(): string[] {
@@ -269,16 +309,23 @@ export class PriceAggregator {
     return {
       enabledProviders: this.providers.length,
       cacheStats: this.cache.getStats(),
+      priceHistoryStats: this.priceHistory.getStats(),
+      circuitBreakerMetrics: this.getCircuitBreakerMetrics(),
       circuitBreakers: this.getCircuitBreakerMetrics(),
     };
   }
+}
 
-  /**
-   * Get circuit breaker metrics for all providers
-   */
-  getCircuitBreakerMetrics(): CircuitBreakerMetrics[] {
-    return Array.from(this.circuitBreakers.values()).map((cb) => cb.getMetrics());
+function isAggregatorConfig(value: unknown): value is Partial<AggregatorConfig> {
+  if (!value || typeof value !== 'object') {
+    return false;
   }
+
+  return 'minSources' in value || 'useWeightedMedian' in value || 'circuitBreaker' in value;
+}
+
+function isPriceHistoryService(value: unknown): value is PriceHistoryService {
+  return value instanceof PriceHistoryService;
 }
 
 /**
@@ -288,7 +335,17 @@ export function createAggregator(
   providers: BasePriceProvider[],
   validator: PriceValidator,
   cache: PriceCache,
+  priceHistoryOrConfig?: PriceHistoryService | Partial<AggregatorConfig>,
   config?: Partial<AggregatorConfig>
 ): PriceAggregator {
-  return new PriceAggregator(providers, validator, cache, config);
+  const priceHistory = isPriceHistoryService(priceHistoryOrConfig)
+    ? priceHistoryOrConfig
+    : new PriceHistoryService();
+  const resolvedConfig = isPriceHistoryService(priceHistoryOrConfig)
+    ? config
+    : isAggregatorConfig(priceHistoryOrConfig)
+      ? priceHistoryOrConfig
+      : config;
+
+  return new PriceAggregator(providers, validator, cache, priceHistory, resolvedConfig);
 }

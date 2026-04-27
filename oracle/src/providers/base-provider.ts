@@ -24,9 +24,9 @@ const httpsAgent = new https.Agent({
  */
 export abstract class BasePriceProvider {
   protected config: ProviderConfig;
-  protected lastRequestTime: number = 0;
-  protected requestCount: number = 0;
-  protected windowStartTime: number = Date.now();
+  // Sliding-window rate limit state: store timestamps (ms) for recent requests.
+  // We keep timestamps for requests that are still within the active window.
+  protected requestTimestamps: number[] = [];
   private rateLimitChain: Promise<void> = Promise.resolve();
 
   constructor(config: ProviderConfig) {
@@ -68,19 +68,27 @@ export abstract class BasePriceProvider {
   abstract fetchPrice(asset: string): Promise<RawPriceData>;
 
   /**
-   * Fetch prices for multiple assets
-   * Can be overridden for batch API calls
+   * Fetch prices for multiple assets in parallel with a concurrency limit.
+   * Failed fetches are logged and skipped without blocking successful ones.
    */
   async fetchPrices(assets: string[]): Promise<RawPriceData[]> {
+    const concurrency = this.config.concurrencyLimit ?? 5;
     const results: RawPriceData[] = [];
 
-    for (const asset of assets) {
-      try {
-        await this.enforceRateLimit();
-        const price = await this.fetchPrice(asset);
-        results.push(price);
-      } catch (error) {
-        logger.error(`Failed to fetch ${asset} from ${this.name}`, { error });
+    for (let i = 0; i < assets.length; i += concurrency) {
+      const batch = assets.slice(i, i + concurrency);
+      const settled = await Promise.allSettled(
+        batch.map(async (asset) => {
+          await this.enforceRateLimit();
+          return this.fetchPrice(asset);
+        })
+      );
+      for (const outcome of settled) {
+        if (outcome.status === 'fulfilled') {
+          results.push(outcome.value);
+        } else {
+          logger.error(`Failed to fetch price from ${this.name}`, { error: outcome.reason });
+        }
       }
     }
 
@@ -125,24 +133,29 @@ export abstract class BasePriceProvider {
   }
 
   private async enforceRateLimitInternal(): Promise<void> {
-    const now = Date.now();
     const { maxRequests, windowMs } = this.config.rateLimit;
 
-    if (now - this.windowStartTime >= windowMs) {
-      this.windowStartTime = now;
-      this.requestCount = 0;
-    }
+    // Loop until the request can be accepted under a moving window.
+    // We use an inclusive window definition (requests at exactly `windowMs`
+    // age are still counted) to prevent boundary bursts.
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const now = Date.now();
 
-    if (this.requestCount >= maxRequests) {
-      const waitTime = windowMs - (now - this.windowStartTime);
+      // Keep requests that are within the last windowMs (inclusive).
+      // That means remove only those strictly older than windowMs.
+      this.requestTimestamps = this.requestTimestamps.filter((t) => now - t <= windowMs);
+
+      if (this.requestTimestamps.length < maxRequests) {
+        this.requestTimestamps.push(now);
+        return;
+      }
+
+      const earliest = this.requestTimestamps[0];
+      const waitTime = Math.max(0, earliest + windowMs - now + 1);
       logger.warn(`Rate limit reached for ${this.name}, waiting ${waitTime}ms`);
       await this.sleep(waitTime);
-      this.windowStartTime = Date.now();
-      this.requestCount = 0;
     }
-
-    this.requestCount++;
-    this.lastRequestTime = now;
   }
 
   /**

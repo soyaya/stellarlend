@@ -1,5 +1,6 @@
 {
   "name": "stellarlend",
+  "version": "1.0.0",
   "private": true,
   "workspaces": [
     "api",
@@ -11,9 +12,23 @@
     "lint:all": "npm run lint --workspaces --if-present",
     "build:all": "npm run build --workspaces --if-present",
     "format:all": "npm run format --workspaces --if-present",
-    "typecheck:all": "npm run typecheck --workspaces --if-present"
+    "typecheck:all": "npm run typecheck --workspaces --if-present",
+    "dev:fork": "bash scripts/dev/start-fork-env.sh",
+    "dev:watch:contracts": "bash scripts/dev/watch-contracts.sh",
+    "dev:seed": "bash scripts/dev/apply-seed-state.sh",
+    "trace:contract": "npm --workspace oracle run trace:analyze --",
+    "deploy:verify": "bash scripts/verify-deployment.sh",
+    "deploy:rollback": "bash scripts/rollback.sh",
+    "verify:contract": "bash scripts/verify-contract.sh",
+    "mutation:api": "npm --workspace api run mutation:test",
+    "mutation:api:check": "npm --workspace api run mutation:check"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
   }
 }

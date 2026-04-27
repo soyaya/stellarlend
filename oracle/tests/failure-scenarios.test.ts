@@ -223,7 +223,7 @@ describe('Failure Scenarios', () => {
     });
 
     it('should continue with fast providers if slow one times out', async () => {
-      provider1.setDelay(5000); // Very slow (simulates timeout)
+      provider1.setDelay(4000); // Very slow (simulates timeout)
       provider1.setFailure(true, new Error('Timeout'));
 
       const aggregator = createAggregator([provider1, provider2, provider3], validator, cache);

@@ -154,6 +154,7 @@ fn test_borrow_interest_accrual() {
 fn test_interest_overflow_returns_error() {
     let env = Env::default();
     env.mock_all_auths();
+    let contract_id = env.register(LendingContract, ());
 
     // Construct a position that will produce an interest larger than i128 when scaled
     let mut position = DebtPosition {
@@ -169,19 +170,19 @@ fn test_interest_overflow_returns_error() {
     });
 
     // Borrowed amount is i128::MAX, 100y at 5% should overflow i128
-    let result = calculate_interest(&env, &position);
+    let result = env.as_contract(&contract_id, || calculate_interest(&env, &position));
     assert!(matches!(result, Err(BorrowError::Overflow)));
 
     // Ensure callers can propagate the error; simulate accrue step
     position.last_update = 0;
-    let accrue_result = (|| -> Result<(), BorrowError> {
+    let accrue_result = env.as_contract(&contract_id, || -> Result<(), BorrowError> {
         let new_interest = calculate_interest(&env, &position)?;
         position.interest_accrued = position
             .interest_accrued
             .checked_add(new_interest)
             .ok_or(BorrowError::Overflow)?;
         Ok(())
-    })();
+    });
     assert!(matches!(accrue_result, Err(BorrowError::Overflow)));
 }
 #[test]
@@ -256,4 +257,49 @@ fn test_debt_position_tracks_borrowed_asset_for_repay() {
 
     let repay_result = client.try_repay(&user, &debt.asset, &1_000);
     assert!(repay_result.is_ok());
+}
+
+#[test]
+fn test_repay_exact_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
+
+    client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
+
+    // Repay exactly 10,000 (no interest accrued because no time passed)
+    let repay_result = client.try_repay(&user, &asset, &10_000);
+    assert_eq!(repay_result, Ok(Ok(())));
+
+    let debt = client.get_user_debt(&user);
+    assert_eq!(debt.borrowed_amount, 0);
+}
+
+#[test]
+fn test_repay_under_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
+
+    client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
+
+    // Repay under 10,000
+    let repay_result = client.try_repay(&user, &asset, &4_000);
+    assert_eq!(repay_result, Ok(Ok(())));
+
+    let debt = client.get_user_debt(&user);
+    assert_eq!(debt.borrowed_amount, 6_000);
+}
+
+#[test]
+fn test_repay_over_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
+
+    client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
+
+    // Try to repay more than borrowed, policy is to reject
+    let repay_result = client.try_repay(&user, &asset, &15_000);
+    assert_eq!(repay_result, Err(Ok(BorrowError::RepayAmountTooHigh)));
 }

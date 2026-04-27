@@ -90,6 +90,14 @@ pub enum ReserveDataKey {
     /// Treasury address: TreasuryAddress -> Address
     /// Destination for reserve withdrawals
     TreasuryAddress,
+
+    /// Optional AMM integration target per asset.
+    /// Allows governance/admin to route protocol reserves into AMM liquidity.
+    ReserveAmmTarget(Option<Address>),
+
+    /// Virtual LP token balance tracked per asset for AMM deployments.
+    /// (Accounting only; actual LP token custody is managed by the AMM contract / ops layer.)
+    ReserveAmmLpBalance(Option<Address>),
 }
 
 /// Initialize reserve configuration for an asset
@@ -109,6 +117,7 @@ pub enum ReserveDataKey {
 /// # Security
 /// * No authorization check - should be called internally during asset initialization
 /// * Validates reserve factor is within acceptable bounds
+#[allow(deprecated)]
 pub fn initialize_reserve_config(
     env: &Env,
     asset: Option<Address>,
@@ -156,6 +165,7 @@ pub fn initialize_reserve_config(
 /// * Requires admin authorization
 /// * Validates reserve factor bounds
 /// * Emits event for transparency
+#[allow(deprecated)]
 pub fn set_reserve_factor(
     env: &Env,
     caller: Address,
@@ -202,6 +212,85 @@ pub fn get_reserve_factor(env: &Env, asset: Option<Address>) -> i128 {
         .unwrap_or(DEFAULT_RESERVE_FACTOR_BPS)
 }
 
+/// Configure AMM reserve integration target (admin only).
+///
+/// Stores the AMM contract address that should be used for reserve deployments for a given asset.
+#[allow(deprecated)]
+pub fn set_reserve_amm_target(
+    env: &Env,
+    caller: Address,
+    asset: Option<Address>,
+    amm_contract: Address,
+) -> Result<(), ReserveError> {
+    caller.require_auth();
+    require_admin(env, &caller)?;
+
+    env.storage()
+        .persistent()
+        .set(&ReserveDataKey::ReserveAmmTarget(asset.clone()), &amm_contract);
+
+    let topics = (Symbol::new(env, "reserve_amm_target_set"), caller);
+    env.events().publish(topics, (asset, amm_contract));
+
+    Ok(())
+}
+
+/// Get AMM reserve integration target for an asset.
+pub fn get_reserve_amm_target(env: &Env, asset: Option<Address>) -> Option<Address> {
+    env.storage()
+        .persistent()
+        .get(&ReserveDataKey::ReserveAmmTarget(asset))
+}
+
+/// Record a reserve deployment into an AMM position (admin only).
+///
+/// This is an accounting helper that moves value from `ReserveBalance` into `ReserveAmmLpBalance`
+/// without requiring a specific AMM interface at the protocol contract layer.
+#[allow(deprecated)]
+pub fn record_reserve_deploy_to_amm(
+    env: &Env,
+    caller: Address,
+    asset: Option<Address>,
+    reserve_amount: i128,
+    lp_tokens_received: i128,
+) -> Result<(), ReserveError> {
+    caller.require_auth();
+    require_admin(env, &caller)?;
+
+    if reserve_amount <= 0 || lp_tokens_received <= 0 {
+        return Err(ReserveError::InvalidAmount);
+    }
+
+    let balance_key = ReserveDataKey::ReserveBalance(asset.clone());
+    let current_reserve: i128 = env.storage().persistent().get(&balance_key).unwrap_or(0);
+    if reserve_amount > current_reserve {
+        return Err(ReserveError::InsufficientReserve);
+    }
+
+    env.storage()
+        .persistent()
+        .set(&balance_key, &(current_reserve - reserve_amount));
+
+    let lp_key = ReserveDataKey::ReserveAmmLpBalance(asset.clone());
+    let current_lp: i128 = env.storage().persistent().get(&lp_key).unwrap_or(0);
+    let new_lp = current_lp.checked_add(lp_tokens_received).ok_or(ReserveError::Overflow)?;
+    env.storage().persistent().set(&lp_key, &new_lp);
+
+    let topics = (Symbol::new(env, "reserve_deployed_to_amm"), caller);
+    env.events()
+        .publish(topics, (asset, reserve_amount, lp_tokens_received, new_lp));
+
+    Ok(())
+}
+
+/// Get tracked AMM LP token balance for an asset.
+pub fn get_reserve_amm_lp_balance(env: &Env, asset: Option<Address>) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&ReserveDataKey::ReserveAmmLpBalance(asset))
+        .unwrap_or(0)
+}
+
 /// Accrue reserves from interest payment
 ///
 /// Called internally when interest is paid during repayment. Calculates the
@@ -229,6 +318,7 @@ pub fn get_reserve_factor(env: &Env, asset: Option<Address>) -> i128 {
 /// reserve_amount = interest_amount * reserve_factor / 10000
 /// lender_amount = interest_amount - reserve_amount
 /// ```
+#[allow(deprecated)]
 pub fn accrue_reserve(
     env: &Env,
     asset: Option<Address>,
@@ -301,6 +391,7 @@ pub fn get_reserve_balance(env: &Env, asset: Option<Address>) -> i128 {
 /// * Requires admin authorization
 /// * Validates treasury address is not the contract itself
 /// * Emits event for transparency
+#[allow(deprecated)]
 pub fn set_treasury_address(
     env: &Env,
     caller: Address,
@@ -368,7 +459,8 @@ pub fn get_treasury_address(env: &Env) -> Option<Address> {
 /// * Updates reserve balance before transfer (checks-effects-interactions)
 /// * Emits event for transparency
 /// * Cannot withdraw user funds (only accrued reserves)
-pub fn withdraw_reserve_to_treasury(
+#[allow(deprecated)]
+pub fn withdraw_reserve_funds(
     env: &Env,
     caller: Address,
     asset: Option<Address>,

@@ -1,7 +1,8 @@
 //! # Oracle Module
 //!
 //! Manages price feeds for all protocol assets with staleness checks, deviation
-//! guards, caching, and fallback oracle support.
+//! guards, caching, multi-source aggregation, circuit breakers, TWAP, and
+//! historical tracking.
 //!
 //! ## Price Resolution Order
 //! 1. **Cache**: returns a cached price if the TTL has not expired.
@@ -14,6 +15,10 @@
 //! - Staleness threshold defaults to 1 hour; configurable by admin.
 //! - Sanity-check bounds on min/max price are enforced on every update.
 //! - Only the admin or the designated oracle address may submit price updates.
+//! - Multiple sources can be configured per asset; aggregation uses a median
+//!   and removes outliers beyond a configured deviation band.
+//! - A per-asset circuit breaker can halt pricing when deviations are extreme.
+//! - TWAP is computed over a configurable time window from stored observations.
 
 #![allow(unused)]
 use crate::admin::get_admin;
@@ -44,6 +49,10 @@ pub enum OracleError {
     AssetNotSupported = 8,
     /// Fallback oracle not configured
     FallbackNotConfigured = 9,
+    /// Circuit breaker is open for this asset
+    CircuitBreakerOpen = 10,
+    /// Not enough valid sources to produce a safe price
+    NotEnoughSources = 11,
 }
 
 /// Storage keys for oracle-related data
@@ -57,18 +66,31 @@ pub enum OracleDataKey {
     /// Address of the designated fallback oracle for an asset
     /// Value type: Address
     FallbackOracle(Address),
+    /// Primary oracle address for an asset
+    /// Value type: Address
+    PrimaryOracle(Address),
+    /// Fallback price feed for an asset
+    /// Value type: PriceFeed
+    FallbackFeed(Address),
     /// Transient price cache for improved gas efficiency
     /// Value type: CachedPrice
-    /// Primary oracle address for an asset
-    PrimaryOracle(Address),
-    /// Fallback price feed data for an asset
-    FallbackFeed(Address),
-    /// transient price cache
     PriceCache(Address),
     /// Global oracle safety and operational parameters
     OracleConfig,
     /// Pause switches specifically for oracle updates: Map<Symbol, bool>
     PauseSwitches,
+    /// Configured additional oracle sources for an asset (excluding primary/fallback)
+    /// Value type: Vec<Address>
+    OracleSources(Address),
+    /// Latest feed per (asset, source oracle)
+    /// Value type: PriceFeed
+    SourceFeed(Address, Address),
+    /// Rolling price observations for TWAP per asset
+    /// Value type: Vec<PriceObservation>
+    PriceHistory(Address),
+    /// Circuit breaker state per asset
+    /// Value type: CircuitBreakerState
+    CircuitBreaker(Address),
 }
 
 /// Price feed data structure
@@ -111,6 +133,18 @@ pub struct OracleConfig {
     pub min_price: i128,
     /// Maximum price sanity check
     pub max_price: i128,
+    /// TWAP window in seconds (0 = disabled; use spot aggregation)
+    pub twap_window_seconds: u64,
+    /// Max number of observations stored per asset for TWAP/history
+    pub max_observations: u32,
+    /// Minimum number of sources required after outlier filtering
+    pub min_sources: u32,
+    /// Outlier filter band around median, in basis points (e.g. 1000 = 10%)
+    pub outlier_deviation_bps: i128,
+    /// Circuit breaker deviation vs last accepted TWAP/spot, in bps
+    pub breaker_deviation_bps: i128,
+    /// Circuit breaker cooldown in seconds
+    pub breaker_cooldown_seconds: u64,
 }
 
 /// Default configuration values
@@ -119,6 +153,12 @@ const DEFAULT_MAX_STALENESS_SECONDS: u64 = 3600; // 1 hour
 const DEFAULT_CACHE_TTL_SECONDS: u64 = 300; // 5 minutes
 const DEFAULT_MIN_PRICE: i128 = 1;
 const DEFAULT_MAX_PRICE: i128 = i128::MAX;
+const DEFAULT_TWAP_WINDOW_SECONDS: u64 = 900; // 15 minutes
+const DEFAULT_MAX_OBSERVATIONS: u32 = 64;
+const DEFAULT_MIN_SOURCES: u32 = 1;
+const DEFAULT_OUTLIER_DEVIATION_BPS: i128 = 1000; // 10%
+const DEFAULT_BREAKER_DEVIATION_BPS: i128 = 2500; // 25%
+const DEFAULT_BREAKER_COOLDOWN_SECONDS: u64 = 600; // 10 minutes
 
 /// Get default oracle configuration
 fn get_default_config() -> OracleConfig {
@@ -128,6 +168,12 @@ fn get_default_config() -> OracleConfig {
         cache_ttl_seconds: DEFAULT_CACHE_TTL_SECONDS,
         min_price: DEFAULT_MIN_PRICE,
         max_price: DEFAULT_MAX_PRICE,
+        twap_window_seconds: DEFAULT_TWAP_WINDOW_SECONDS,
+        max_observations: DEFAULT_MAX_OBSERVATIONS,
+        min_sources: DEFAULT_MIN_SOURCES,
+        outlier_deviation_bps: DEFAULT_OUTLIER_DEVIATION_BPS,
+        breaker_deviation_bps: DEFAULT_BREAKER_DEVIATION_BPS,
+        breaker_cooldown_seconds: DEFAULT_BREAKER_COOLDOWN_SECONDS,
     }
 }
 
@@ -213,6 +259,386 @@ fn check_price_deviation(env: &Env, new_price: i128, old_price: i128) -> Result<
     }
 
     Ok(())
+}
+
+/// A single observation used for TWAP and analysis.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PriceObservation {
+    pub price: i128,
+    pub timestamp: u64,
+}
+
+/// Per-asset circuit breaker state.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CircuitBreakerState {
+    /// If `open_until` is in the future, pricing is halted for this asset.
+    pub open_until: u64,
+    /// Last accepted safe price (spot or TWAP) used for breaker comparisons.
+    pub last_safe_price: i128,
+    /// Last time we tripped (for metrics/analysis).
+    pub last_trip_timestamp: u64,
+}
+
+fn get_breaker_state(env: &Env, asset: &Address) -> CircuitBreakerState {
+    let key = OracleDataKey::CircuitBreaker(asset.clone());
+    env.storage()
+        .persistent()
+        .get::<OracleDataKey, CircuitBreakerState>(&key)
+        .unwrap_or(CircuitBreakerState {
+            open_until: 0,
+            last_safe_price: 0,
+            last_trip_timestamp: 0,
+        })
+}
+
+fn set_breaker_state(env: &Env, asset: &Address, state: &CircuitBreakerState) {
+    let key = OracleDataKey::CircuitBreaker(asset.clone());
+    env.storage().persistent().set(&key, state);
+}
+
+fn is_breaker_open(env: &Env, asset: &Address) -> bool {
+    let state = get_breaker_state(env, asset);
+    env.ledger().timestamp() < state.open_until
+}
+
+fn maybe_trip_breaker(
+    env: &Env,
+    asset: &Address,
+    candidate_price: i128,
+) -> Result<(), OracleError> {
+    let config = get_oracle_config(env);
+    if config.breaker_deviation_bps <= 0 {
+        return Ok(());
+    }
+
+    let mut state = get_breaker_state(env, asset);
+    if state.last_safe_price <= 0 {
+        // First price becomes baseline.
+        state.last_safe_price = candidate_price;
+        state.open_until = 0;
+        state.last_trip_timestamp = 0;
+        set_breaker_state(env, asset, &state);
+        return Ok(());
+    }
+
+    // deviation_bps = |candidate - last_safe| / last_safe * 10000
+    let diff = if candidate_price > state.last_safe_price {
+        candidate_price
+            .checked_sub(state.last_safe_price)
+            .ok_or(OracleError::Overflow)?
+    } else {
+        state
+            .last_safe_price
+            .checked_sub(candidate_price)
+            .ok_or(OracleError::Overflow)?
+    };
+
+    let deviation_bps = diff
+        .checked_mul(10000)
+        .ok_or(OracleError::Overflow)?
+        .checked_div(state.last_safe_price)
+        .ok_or(OracleError::Overflow)?;
+
+    if deviation_bps > config.breaker_deviation_bps {
+        let now = env.ledger().timestamp();
+        state.open_until = now.saturating_add(config.breaker_cooldown_seconds);
+        state.last_trip_timestamp = now;
+        set_breaker_state(env, asset, &state);
+        return Err(OracleError::CircuitBreakerOpen);
+    }
+
+    Ok(())
+}
+
+fn record_safe_price(env: &Env, asset: &Address, safe_price: i128) {
+    let mut state = get_breaker_state(env, asset);
+    state.last_safe_price = safe_price;
+    set_breaker_state(env, asset, &state);
+}
+
+fn get_oracle_sources(env: &Env, asset: &Address) -> Vec<Address> {
+    let key = OracleDataKey::OracleSources(asset.clone());
+    env.storage()
+        .persistent()
+        .get::<OracleDataKey, Vec<Address>>(&key)
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+fn set_oracle_sources_internal(env: &Env, asset: &Address, sources: &Vec<Address>) {
+    let key = OracleDataKey::OracleSources(asset.clone());
+    env.storage().persistent().set(&key, sources);
+}
+
+fn get_source_feed(env: &Env, asset: &Address, source: &Address) -> Option<PriceFeed> {
+    let key = OracleDataKey::SourceFeed(asset.clone(), source.clone());
+    env.storage()
+        .persistent()
+        .get::<OracleDataKey, PriceFeed>(&key)
+}
+
+fn write_source_feed(env: &Env, asset: &Address, source: &Address, feed: &PriceFeed) {
+    let key = OracleDataKey::SourceFeed(asset.clone(), source.clone());
+    env.storage().persistent().set(&key, feed);
+}
+
+fn load_history(env: &Env, asset: &Address) -> Vec<PriceObservation> {
+    let key = OracleDataKey::PriceHistory(asset.clone());
+    env.storage()
+        .persistent()
+        .get::<OracleDataKey, Vec<PriceObservation>>(&key)
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+fn save_history(env: &Env, asset: &Address, history: &Vec<PriceObservation>) {
+    let key = OracleDataKey::PriceHistory(asset.clone());
+    env.storage().persistent().set(&key, history);
+}
+
+fn append_observation(env: &Env, asset: &Address, price: i128) {
+    let config = get_oracle_config(env);
+    if config.max_observations == 0 {
+        return;
+    }
+
+    let mut history = load_history(env, asset);
+    let now = env.ledger().timestamp();
+    history.push_back(PriceObservation {
+        price,
+        timestamp: now,
+    });
+
+    // Trim to max_observations (drop oldest).
+    while history.len() > config.max_observations {
+        history.pop_front();
+    }
+    save_history(env, asset, &history);
+}
+
+fn median_i128(env: &Env, mut values: Vec<i128>) -> Result<i128, OracleError> {
+    let n = values.len();
+    if n == 0 {
+        return Err(OracleError::NotEnoughSources);
+    }
+
+    // Simple insertion sort (small n expected).
+    let mut i = 1;
+    while i < n {
+        let key = values.get(i).unwrap();
+        let mut j = i;
+        while j > 0 {
+            let prev = values.get(j - 1).unwrap();
+            if prev <= key {
+                break;
+            }
+            values.set(j, prev);
+            j -= 1;
+        }
+        values.set(j, key);
+        i += 1;
+    }
+
+    let mid = n / 2;
+    Ok(values.get(mid).unwrap())
+}
+
+fn filter_outliers(env: &Env, median: i128, prices: Vec<i128>) -> Result<Vec<i128>, OracleError> {
+    let config = get_oracle_config(env);
+    if median <= 0 {
+        return Err(OracleError::InvalidPrice);
+    }
+    if config.outlier_deviation_bps <= 0 {
+        return Ok(prices);
+    }
+
+    let mut kept: Vec<i128> = Vec::new(env);
+    for p in prices.iter() {
+        if p <= 0 {
+            continue;
+        }
+        let diff = if p > median {
+            p.checked_sub(median).ok_or(OracleError::Overflow)?
+        } else {
+            median.checked_sub(p).ok_or(OracleError::Overflow)?
+        };
+        let deviation_bps = diff
+            .checked_mul(10000)
+            .ok_or(OracleError::Overflow)?
+            .checked_div(median)
+            .ok_or(OracleError::Overflow)?;
+        if deviation_bps <= config.outlier_deviation_bps {
+            kept.push_back(p);
+        }
+    }
+    Ok(kept)
+}
+
+fn aggregate_spot_price(env: &Env, asset: &Address) -> Result<i128, OracleError> {
+    let config = get_oracle_config(env);
+
+    let mut candidates: Vec<i128> = Vec::new(env);
+    let mut saw_any_feed: bool = false;
+    let mut saw_stale_feed: bool = false;
+
+    // Primary feed (if present and fresh)
+    let primary_feed_key = OracleDataKey::PriceFeed(asset.clone());
+    if let Some(feed) = env
+        .storage()
+        .persistent()
+        .get::<OracleDataKey, PriceFeed>(&primary_feed_key)
+    {
+        saw_any_feed = true;
+        if !is_price_stale(env, feed.last_updated) {
+            candidates.push_back(feed.price);
+        } else {
+            saw_stale_feed = true;
+        }
+    }
+
+    // Fallback feed (if present and fresh and from configured fallback oracle)
+    if let Some(fallback_oracle) = get_fallback_oracle(env, asset) {
+        let fallback_key = OracleDataKey::FallbackFeed(asset.clone());
+        if let Some(feed) = env
+            .storage()
+            .persistent()
+            .get::<OracleDataKey, PriceFeed>(&fallback_key)
+        {
+            saw_any_feed = true;
+            if feed.oracle == fallback_oracle && !is_price_stale(env, feed.last_updated) {
+                candidates.push_back(feed.price);
+            } else if is_price_stale(env, feed.last_updated) {
+                saw_stale_feed = true;
+            }
+        }
+    }
+
+    // Additional source feeds (configured by admin)
+    let sources = get_oracle_sources(env, asset);
+    for src in sources.iter() {
+        if let Some(feed) = get_source_feed(env, asset, &src) {
+            saw_any_feed = true;
+            if !is_price_stale(env, feed.last_updated) {
+                candidates.push_back(feed.price);
+            } else {
+                saw_stale_feed = true;
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        // Preserve historical behavior: if we saw feeds but they were stale, return StalePrice.
+        if saw_any_feed && saw_stale_feed {
+            return Err(OracleError::StalePrice);
+        }
+        // No feeds at all (or only mismatched fallback oracle); treat as missing.
+        return Err(OracleError::FallbackNotConfigured);
+    }
+
+    let med = median_i128(env, candidates.clone())?;
+    let filtered = filter_outliers(env, med, candidates)?;
+    if filtered.len() < config.min_sources {
+        return Err(OracleError::NotEnoughSources);
+    }
+
+    // Median again after filtering (robust to single extreme outlier).
+    let med2 = median_i128(env, filtered)?;
+    Ok(med2)
+}
+
+fn compute_twap(env: &Env, asset: &Address, spot_price: i128) -> Result<i128, OracleError> {
+    let config = get_oracle_config(env);
+    if config.twap_window_seconds == 0 {
+        return Ok(spot_price);
+    }
+
+    let now = env.ledger().timestamp();
+    let window_start = now.saturating_sub(config.twap_window_seconds);
+
+    let history = load_history(env, asset);
+    if history.is_empty() {
+        return Ok(spot_price);
+    }
+
+    // Time-weighted average over [window_start, now] using stored observations.
+    // For the last segment, we assume the latest known price holds to `now`.
+    let mut weighted_sum: i128 = 0;
+    let mut total_time: u64 = 0;
+
+    // Find the first observation within window; include the immediately prior one
+    // (so TWAP includes continuity from before the window).
+    let mut start_idx: u32 = 0;
+    let mut i: u32 = 0;
+    while i < history.len() {
+        let obs = history.get(i).unwrap();
+        if obs.timestamp >= window_start {
+            start_idx = if i == 0 { 0 } else { i - 1 };
+            break;
+        }
+        i += 1;
+    }
+
+    let mut prev = history.get(start_idx).unwrap();
+    let mut prev_t = if prev.timestamp < window_start {
+        window_start
+    } else {
+        prev.timestamp
+    };
+
+    let mut idx: u32 = start_idx + 1;
+    while idx < history.len() {
+        let cur = history.get(idx).unwrap();
+        if cur.timestamp <= window_start {
+            idx += 1;
+            continue;
+        }
+        let cur_t = cur.timestamp;
+        if cur_t > now {
+            break;
+        }
+        if cur_t > prev_t {
+            let dt = cur_t - prev_t;
+            let dt_i128: i128 = dt as i128;
+            weighted_sum = weighted_sum
+                .checked_add(
+                    prev.price
+                        .checked_mul(dt_i128)
+                        .ok_or(OracleError::Overflow)?,
+                )
+                .ok_or(OracleError::Overflow)?;
+            total_time = total_time.saturating_add(dt);
+        }
+        prev = cur;
+        prev_t = cur_t;
+        idx += 1;
+    }
+
+    // Last segment to now, using the latest observed price (or spot if none).
+    let last_price = if prev.timestamp == 0 {
+        spot_price
+    } else {
+        prev.price
+    };
+    if now > prev_t {
+        let dt = now - prev_t;
+        let dt_i128: i128 = dt as i128;
+        weighted_sum = weighted_sum
+            .checked_add(
+                last_price
+                    .checked_mul(dt_i128)
+                    .ok_or(OracleError::Overflow)?,
+            )
+            .ok_or(OracleError::Overflow)?;
+        total_time = total_time.saturating_add(dt);
+    }
+
+    if total_time == 0 {
+        return Ok(spot_price);
+    }
+
+    weighted_sum
+        .checked_div(total_time as i128)
+        .ok_or(OracleError::Overflow)
 }
 
 /// Get cached price if valid
@@ -329,6 +755,11 @@ pub fn update_price_feed(
     // Update storage
     env.storage().persistent().set(&feed_key, &new_feed);
 
+    // Also store per-source feed (used for aggregation) when caller is not admin,
+    // or when admin explicitly sets `oracle` for later authorization.
+    // This lets the protocol aggregate across multiple configured sources.
+    write_source_feed(env, &asset, &oracle, &new_feed);
+
     // When admin submits a price, register the oracle address as the primary oracle
     // for the asset so subsequent calls from that oracle are authorized.
     if is_admin {
@@ -364,37 +795,35 @@ pub fn update_price_feed(
 /// # Returns
 /// Returns the current price, using cache or fallback if needed
 pub fn get_price(env: &Env, asset: &Address) -> Result<i128, OracleError> {
+    // Circuit breaker check (halts reads for this asset)
+    if is_breaker_open(env, asset) {
+        return Err(OracleError::CircuitBreakerOpen);
+    }
+
     // Try cache first
     if let Some(cached_price) = get_cached_price(env, asset) {
         return Ok(cached_price);
     }
 
-    // Get primary price feed
-    let feed_key = OracleDataKey::PriceFeed(asset.clone());
-    if let Some(feed) = env
-        .storage()
-        .persistent()
-        .get::<OracleDataKey, PriceFeed>(&feed_key)
-    {
-        // Check if price is stale
-        if is_price_stale(env, feed.last_updated) {
-            // Try fallback oracle
-            if let Ok(fallback_price) = get_fallback_price(env, asset) {
-                return Ok(fallback_price);
-            }
-            // If fallback failed or not configured, but we have a stale price,
-            // we could return it in emergency, but here we enforce staleness
-            return Err(OracleError::StalePrice);
-        }
+    // Aggregate spot from available sources, apply outlier removal.
+    let spot = aggregate_spot_price(env, asset)?;
 
-        // Cache the price
-        cache_price(env, asset, feed.price);
+    // Circuit breaker trip check against last safe price.
+    maybe_trip_breaker(env, asset, spot)?;
 
-        return Ok(feed.price);
-    }
+    // Store observation and compute TWAP (if enabled).
+    append_observation(env, asset, spot);
+    let twap = compute_twap(env, asset, spot)?;
 
-    // No primary price feed found, try fallback
-    get_fallback_price(env, asset)
+    // Secondary circuit breaker check against TWAP output, to avoid returning
+    // a fresh-but-manipulated TWAP when history is sparse.
+    maybe_trip_breaker(env, asset, twap)?;
+
+    // Cache and remember as last safe price.
+    cache_price(env, asset, twap);
+    record_safe_price(env, asset, twap);
+
+    Ok(twap)
 }
 
 /// Get price from fallback oracle
@@ -505,9 +934,59 @@ pub fn configure_oracle(
         return Err(OracleError::InvalidPrice);
     }
 
+    if config.min_sources == 0 {
+        return Err(OracleError::InvalidPrice);
+    }
+
+    if config.max_observations > 256 {
+        // Keep bounded storage.
+        return Err(OracleError::InvalidPrice);
+    }
+
+    if config.outlier_deviation_bps <= 0 || config.outlier_deviation_bps > 10000 {
+        return Err(OracleError::InvalidPrice);
+    }
+
+    if config.breaker_deviation_bps <= 0 || config.breaker_deviation_bps > 10000 {
+        return Err(OracleError::InvalidPrice);
+    }
+
     // Update configuration
     let config_key = OracleDataKey::OracleConfig;
     env.storage().persistent().set(&config_key, &config);
 
+    Ok(())
+}
+
+/// Admin-only: set additional oracle sources for an asset.
+///
+/// These sources submit `update_price_feed` updates and are used for aggregation
+/// alongside the primary (and fallback, if configured).
+pub fn set_oracle_sources(
+    env: &Env,
+    caller: Address,
+    asset: Address,
+    sources: Vec<Address>,
+) -> Result<(), OracleError> {
+    crate::admin::require_admin(env, &caller).map_err(|_| OracleError::Unauthorized)?;
+    set_oracle_sources_internal(env, &asset, &sources);
+    Ok(())
+}
+
+/// Admin-only: emergency pause of oracle reads/writes for a specific asset.
+///
+/// Implemented by opening the circuit breaker for a long cooldown.
+pub fn emergency_pause_asset_oracle(
+    env: &Env,
+    caller: Address,
+    asset: Address,
+    pause_seconds: u64,
+) -> Result<(), OracleError> {
+    crate::admin::require_admin(env, &caller).map_err(|_| OracleError::Unauthorized)?;
+    let now = env.ledger().timestamp();
+    let mut state = get_breaker_state(env, &asset);
+    state.open_until = now.saturating_add(pause_seconds);
+    state.last_trip_timestamp = now;
+    set_breaker_state(env, &asset, &state);
     Ok(())
 }

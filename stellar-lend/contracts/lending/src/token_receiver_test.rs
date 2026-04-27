@@ -12,7 +12,8 @@ fn test_receive_deposit_success() {
     let from = Address::generate(&env);
     let asset = Address::generate(&env);
 
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
 
     let payload = (Symbol::new(&env, "deposit"),).into_val(&env);
 
@@ -36,7 +37,8 @@ fn test_receive_repay_success() {
     let asset = Address::generate(&env);
     let collateral_asset = Address::generate(&env);
 
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
 
     // Initial borrow to create debt
     client.borrow(&from, &asset, &10_000, &collateral_asset, &20_000);
@@ -61,7 +63,8 @@ fn test_receive_invalid_action() {
     let from = Address::generate(&env);
     let asset = Address::generate(&env);
 
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
 
     let payload = (Symbol::new(&env, "withdraw"),).into_val(&env);
 
@@ -80,7 +83,8 @@ fn test_direct_deposit_repay() {
     let user = Address::generate(&env);
     let asset = Address::generate(&env);
 
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
 
     // Test direct deposit
     client.deposit_collateral(&user, &asset, &10_000);

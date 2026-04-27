@@ -81,6 +81,7 @@ export interface ProviderConfig {
     maxRequests: number;
     windowMs: number;
   };
+  concurrencyLimit?: number;
 }
 
 /**
@@ -110,8 +111,11 @@ export interface ContractUpdateResult {
 export interface OracleServiceConfig {
   stellarNetwork: 'testnet' | 'mainnet';
   stellarRpcUrl: string;
+  baseFee: number;
+  maxFee: number;
   contractId: string;
   adminSecretKey: string;
+  dryRun?: boolean;
   updateIntervalMs: number;
   maxPriceDeviationPercent: number;
   priceStaleThresholdSeconds: number;

@@ -215,6 +215,7 @@ pub fn set_risk_params(
 }
 
 /// Emit risk parameters updated event
+#[allow(deprecated)]
 fn emit_risk_params_updated_event(env: &Env, config: &RiskParams) {
     let topics = (Symbol::new(env, "risk_params_updated"),);
     env.events().publish(topics, config.clone());

@@ -31,6 +31,18 @@ use soroban_sdk::{
     Address, Env, Map, Symbol,
 };
 
+fn with_new_config_fields(mut cfg: OracleConfig) -> OracleConfig {
+    // Keep existing tests focused: unless a test cares about TWAP/breaker/outliers,
+    // use safe defaults that preserve previous single-source behavior.
+    cfg.twap_window_seconds = 0;
+    cfg.max_observations = 64;
+    cfg.min_sources = 1;
+    cfg.outlier_deviation_bps = 1000;
+    cfg.breaker_deviation_bps = 10000;
+    cfg.breaker_cooldown_seconds = 0;
+    cfg
+}
+
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
@@ -380,13 +392,19 @@ fn test_configure_oracle() {
     let env = create_test_env();
     let (_contract_id, admin, client) = setup_contract_with_admin(&env);
 
-    let config = OracleConfig {
+    let config = with_new_config_fields(OracleConfig {
         max_deviation_bps: 1000,     // 10%
         max_staleness_seconds: 7200, // 2 hours
         cache_ttl_seconds: 600,      // 10 minutes
         min_price: 1,
         max_price: i128::MAX,
-    };
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
+    });
 
     // Should succeed without panic
     client.configure_oracle(&admin, &config);
@@ -400,13 +418,19 @@ fn test_configure_oracle_unauthorized() {
     let (_contract_id, _admin, client) = setup_contract_with_admin(&env);
     let unauthorized = Address::generate(&env);
 
-    let config = OracleConfig {
+    let config = with_new_config_fields(OracleConfig {
         max_deviation_bps: 1000,
         max_staleness_seconds: 7200,
         cache_ttl_seconds: 600,
         min_price: 1,
         max_price: i128::MAX,
-    };
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
+    });
 
     client.configure_oracle(&unauthorized, &config);
 }
@@ -418,13 +442,19 @@ fn test_configure_oracle_invalid_deviation_zero() {
     let env = create_test_env();
     let (_contract_id, admin, client) = setup_contract_with_admin(&env);
 
-    let config = OracleConfig {
+    let config = with_new_config_fields(OracleConfig {
         max_deviation_bps: 0, // Invalid - must be > 0
         max_staleness_seconds: 3600,
         cache_ttl_seconds: 300,
         min_price: 1,
         max_price: i128::MAX,
-    };
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
+    });
 
     client.configure_oracle(&admin, &config);
 }
@@ -436,13 +466,19 @@ fn test_configure_oracle_invalid_deviation_too_high() {
     let env = create_test_env();
     let (_contract_id, admin, client) = setup_contract_with_admin(&env);
 
-    let config = OracleConfig {
+    let config = with_new_config_fields(OracleConfig {
         max_deviation_bps: 15000, // Invalid - > 10000 (100%)
         max_staleness_seconds: 3600,
         cache_ttl_seconds: 300,
         min_price: 1,
         max_price: i128::MAX,
-    };
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
+    });
 
     client.configure_oracle(&admin, &config);
 }
@@ -454,13 +490,19 @@ fn test_configure_oracle_invalid_staleness_zero() {
     let env = create_test_env();
     let (_contract_id, admin, client) = setup_contract_with_admin(&env);
 
-    let config = OracleConfig {
+    let config = with_new_config_fields(OracleConfig {
         max_deviation_bps: 500,
         max_staleness_seconds: 0, // Invalid - must be > 0
         cache_ttl_seconds: 300,
         min_price: 1,
         max_price: i128::MAX,
-    };
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
+    });
 
     client.configure_oracle(&admin, &config);
 }
@@ -754,13 +796,19 @@ fn test_price_bounds_enforcement() {
     let oracle = Address::generate(&env);
 
     // Configure with specific price bounds
-    let config = OracleConfig {
+    let config = with_new_config_fields(OracleConfig {
         max_deviation_bps: 500,
         max_staleness_seconds: 3600,
         cache_ttl_seconds: 300,
         min_price: 1_000_000,         // Minimum $0.01 with 8 decimals
         max_price: 1_000_000_000_000, // Maximum $10,000 with 8 decimals
-    };
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
+    });
     client.configure_oracle(&admin, &config);
 
     // Valid price within bounds
@@ -779,14 +827,60 @@ fn test_price_below_minimum_bound() {
     let oracle = Address::generate(&env);
 
     // Configure with specific price bounds
-    let config = OracleConfig {
+    let config = with_new_config_fields(OracleConfig {
         max_deviation_bps: 500,
         max_staleness_seconds: 3600,
         cache_ttl_seconds: 300,
         min_price: 1_000_000, // Minimum $0.01 with 8 decimals
         max_price: 1_000_000_000_000,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 1,
+        outlier_deviation_bps: 1000,
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
+    });
+    client.configure_oracle(&admin, &config);
+
+// =============================================================================
+// MANIPULATION RESISTANCE (multi-source + outlier removal)
+// =============================================================================
+
+#[test]
+fn test_multi_source_outlier_removed() {
+    let env = create_test_env();
+    let (_contract_id, admin, client) = setup_contract_with_admin(&env);
+    let asset = Address::generate(&env);
+
+    let config = OracleConfig {
+        max_deviation_bps: 10000, // let sources submit; read path protects
+        max_staleness_seconds: 3600,
+        cache_ttl_seconds: 0, // avoid cache masking aggregation
+        min_price: 1,
+        max_price: i128::MAX,
+        twap_window_seconds: 0,
+        max_observations: 64,
+        min_sources: 2,
+        outlier_deviation_bps: 1000, // 10% band around median
+        breaker_deviation_bps: 10000,
+        breaker_cooldown_seconds: 0,
     };
     client.configure_oracle(&admin, &config);
+
+    let s1 = Address::generate(&env);
+    let s2 = Address::generate(&env);
+    let s3 = Address::generate(&env);
+    let sources = vec![&env, s1.clone(), s2.clone(), s3.clone()];
+    client.set_oracle_sources(&admin, &asset, &sources);
+
+    // Establish authorization + per-source feeds
+    client.update_price_feed(&admin, &asset, &100_000_000, &8, &s1);
+    client.update_price_feed(&admin, &asset, &101_000_000, &8, &s2);
+    client.update_price_feed(&admin, &asset, &500_000_000, &8, &s3); // outlier
+
+    let p = client.get_price(&asset);
+    assert!(p >= 100_000_000 && p <= 101_000_000);
+}
 
     // Price below minimum
     let below_min_price = 100i128; // Way below $0.01

@@ -38,6 +38,10 @@ export interface PrepareResponse {
 
 export interface SubmitRequest {
   signedXdr: string;
+  operation?: LendingOperation;
+  userAddress?: string;
+  amount?: string;
+  assetAddress?: string;
 }
 
 export interface TransactionResponse {
@@ -47,6 +51,11 @@ export interface TransactionResponse {
   message?: string;
   error?: string;
   ledger?: number;
+  /**
+   * Optional raw provider payload for debugging (e.g. Horizon or RPC result details).
+   * Kept generic since provider response shapes differ.
+   */
+  details?: unknown;
 }
 
 export interface PositionResponse {
@@ -65,6 +74,24 @@ export interface HealthCheckResponse {
     horizon: boolean;
     sorobanRpc: boolean;
   };
+}
+
+export interface ProtocolStatsResponse {
+  totalDeposits: string;
+  totalBorrows: string;
+  utilizationRate: string;
+  numberOfUsers: number;
+  tvl: string;
+  stablecoinStats?: StablecoinAssetStats[];
+}
+
+export interface StablecoinAssetStats {
+  asset: string;
+  price: string;
+  targetPrice: string;
+  deviationBps: number;
+  stabilityFeeBps: number;
+  isDepegged: boolean;
 }
 
 export enum TransactionStatus {
@@ -105,3 +132,26 @@ export type ServerMessage =
   | { type: 'unsubscribed'; assets: string[] }
   | { type: 'pong' }
   | { type: 'error'; message: string };
+
+// ─── Transaction History Types ──────────────────────────────────────────────────
+
+export interface TransactionHistoryItem {
+  transactionHash: string;
+  type: LendingOperation;
+  amount: string;
+  assetAddress?: string;
+  timestamp: string;
+  status: 'success' | 'failed' | 'pending';
+  ledger?: number;
+  memo?: string;
+}
+
+import { PaginatedResponse } from './pagination';
+export * from './subscriptions';
+import { PaginatedResponse, PaginationParams } from './pagination';
+
+export type TransactionHistoryResponse = PaginatedResponse<TransactionHistoryItem>;
+
+export interface TransactionHistoryQuery extends PaginationParams {
+  userAddress: string;
+}
