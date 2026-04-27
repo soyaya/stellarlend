@@ -19,6 +19,7 @@
     "trace:contract": "npm --workspace oracle run trace:analyze --",
     "deploy:verify": "bash scripts/verify-deployment.sh",
     "deploy:rollback": "bash scripts/rollback.sh",
+    "verify:contract": "bash scripts/verify-contract.sh",
     "mutation:api": "npm --workspace api run mutation:test",
     "mutation:api:check": "npm --workspace api run mutation:check"
   },
