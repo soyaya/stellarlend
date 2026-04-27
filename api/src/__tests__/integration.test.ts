@@ -577,7 +577,30 @@ describe('Per-User Rate Limiting', () => {
   });
 });
 
-// ─── 7. IP-based Rate Limiting (Outer Layer) ──────────────────────────────────────
+// ─── 7. Contract Verification ──────────────────────────────────────
+
+describe('Contract Verification', () => {
+  it('returns 400 when contractId is missing', async () => {
+    const res = await request(app).get('/api/verification');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/contractId/);
+  });
+
+  it('returns 400 for invalid contract ID', async () => {
+    const res = await request(app)
+      .get('/api/verification')
+      .query({ contractId: 'invalid' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Unable to determine source path/);
+  });
+
+  // Note: Full verification test would require mocking exec and the script,
+  // but for now we test the basic validation
+});
+
+// ─── 8. IP-based Rate Limiting (Outer Layer) ──────────────────────────────────────
 
 describe('IP-based Rate Limiting (Outer Layer)', () => {
   it('still applies to all API endpoints', async () => {
