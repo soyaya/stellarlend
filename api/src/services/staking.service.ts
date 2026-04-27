@@ -158,7 +158,7 @@ export class StakingService {
       throw Object.assign(new Error('Cannot delegate to self'), { status: 400 });
     }
 
-    let delegatePos = positions.get(req.delegateTo);
+    const delegatePos = positions.get(req.delegateTo);
     if (!delegatePos) {
       throw Object.assign(new Error('Delegate address has no staking position'), { status: 404 });
     }

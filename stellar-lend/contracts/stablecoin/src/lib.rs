@@ -1,6 +1,7 @@
 #![no_std]
+#![allow(deprecated)] // env.events().publish — migrate to #[contractevent] when stabilizing stablecoin API
 
-use soroban_sdk::token::TokenClient;
+use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, Symbol};
 
 const BPS: i128 = 10_000;
@@ -213,7 +214,7 @@ impl StablecoinContract {
         let collateral = collateral_token(&env)?;
         TokenClient::new(&env, &collateral).transfer(
             &user,
-            &env.current_contract_address(),
+            env.current_contract_address(),
             &amount,
         );
         add_total_collateral(&env, amount)?;
@@ -252,7 +253,7 @@ impl StablecoinContract {
         }
 
         let stable = stablecoin_token(&env)?;
-        TokenClient::new(&env, &stable).mint(&user, &mint_amount);
+        StellarAssetClient::new(&env, &stable).mint(&user, &mint_amount);
 
         env.events().publish(
             (Symbol::new(&env, "stablecoin_minted"), user),
