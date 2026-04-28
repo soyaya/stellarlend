@@ -44,7 +44,19 @@ pub fn withdraw(
     asset: Address,
     amount: i128,
 ) -> Result<i128, WithdrawError> {
-    user.require_auth();
+    withdraw_with_auth(env, user, asset, amount, true)
+}
+
+pub(crate) fn withdraw_with_auth(
+    env: &Env,
+    user: Address,
+    asset: Address,
+    amount: i128,
+    require_auth: bool,
+) -> Result<i128, WithdrawError> {
+    if require_auth {
+        user.require_auth();
+    }
 
     if is_paused(env) || crate::pause::is_paused(env, crate::pause::PauseType::Withdraw) {
         return Err(WithdrawError::WithdrawPaused);

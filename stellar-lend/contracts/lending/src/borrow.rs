@@ -47,6 +47,29 @@ pub enum BorrowError {
     InsufficientReserves = 11,
 }
 
+/// Borrow on behalf of a user when authorization is provided via a trusted delegate.
+///
+/// This bypasses `user.require_auth()` and is intended to be called only after
+/// delegation/nonce checks at a higher layer.
+pub(crate) fn borrow_trusted(
+    env: &Env,
+    user: Address,
+    asset: Address,
+    amount: i128,
+    collateral_asset: Address,
+    collateral_amount: i128,
+) -> Result<(), BorrowError> {
+    borrow_inner(
+        env,
+        user,
+        asset,
+        amount,
+        collateral_asset,
+        collateral_amount,
+        BorrowAuth::TrustedCommitment,
+    )
+}
+
 /// Storage keys for protocol-wide data.
 #[contracttype]
 #[derive(Clone)]

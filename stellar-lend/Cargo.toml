@@ -6,6 +6,7 @@ members = [
   "contracts/amm",
   "contracts/bridge",
   "contracts/common",
+  "contracts/delegation-registry",
   "contracts/hello-world",
   "contracts/lending",
   "contracts/stablecoin",

@@ -17,6 +17,7 @@ stellarlend-common = { path = "../common" }
 [dev-dependencies]
 stellarlend-common = { path = "../common", features = ["testutils"] }
 soroban-sdk = { workspace = true, features = ["testutils"] }
+delegation-registry = { path = "../delegation-registry" }
 
 [features]
 testutils = ["soroban-sdk/testutils"]

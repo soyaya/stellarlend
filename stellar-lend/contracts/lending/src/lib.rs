@@ -5,13 +5,14 @@
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env, Val, Vec};
 
 pub mod borrow;
-mod deposit;
 pub mod events;
+mod deposit;
 mod flash_loan;
 pub mod invariants;
 pub mod pause;
 mod token_receiver;
 mod withdraw;
+mod meta;
 pub mod yield_farming;
 
 // Re-export contract types used in the public interface so downstream tooling
@@ -22,6 +23,7 @@ pub use flash_loan::FlashLoanError;
 pub use pause::PauseType;
 pub use views::{ProtocolMetrics, ProtocolReport, StablecoinAssetStats, UserPositionSummary};
 pub use withdraw::WithdrawError;
+pub use meta::{Action as MetaAction, Call as MetaCall, MetaTxError};
 
 pub use commitments::{
     BorrowCommitment, CommitmentError, CommitmentStatus, PriceTrigger, TriggerCombiner,
@@ -61,6 +63,8 @@ use withdraw::{
     set_withdraw_paused as set_withdraw_paused_logic, withdraw as withdraw_logic,
 };
 
+use meta::{execute_delegated as execute_delegated_logic, set_delegation_registry as set_delegation_registry_logic};
+
 #[derive(Clone)]
 #[contracttype]
 pub enum BadDebtKey {
@@ -92,6 +96,8 @@ mod flash_loan_test;
 #[cfg(test)]
 mod math_safety_test;
 #[cfg(test)]
+mod meta_test;
+#[cfg(test)]
 mod pause_test;
 #[cfg(test)]
 mod stablecoin_test;
@@ -122,6 +128,31 @@ impl LendingContract {
         set_borrow_admin(&env, &admin);
         initialize_borrow_logic(&env, debt_ceiling, min_borrow_amount)?;
         Ok(())
+    }
+
+    pub fn set_delegation_registry(
+        env: Env,
+        admin: Address,
+        registry: Address,
+    ) -> Result<(), BorrowError> {
+        let current_admin = get_borrow_admin(&env).ok_or(BorrowError::Unauthorized)?;
+        if admin != current_admin {
+            return Err(BorrowError::Unauthorized);
+        }
+        admin.require_auth();
+        set_delegation_registry_logic(&env, registry);
+        Ok(())
+    }
+
+    pub fn execute_delegated(
+        env: Env,
+        delegator: Address,
+        delegate: Address,
+        nonce: u64,
+        deadline: u64,
+        calls: Vec<meta::Call>,
+    ) -> Result<(), meta::MetaTxError> {
+        execute_delegated_logic(&env, delegator, delegate, nonce, deadline, calls)
     }
 
     pub fn get_total_bad_debt(env: &Env) -> i128 {
