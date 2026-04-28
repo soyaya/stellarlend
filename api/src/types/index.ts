@@ -44,6 +44,20 @@ export interface SubmitRequest {
   assetAddress?: string;
 }
 
+export interface RelayDelegatedRequest {
+  delegatorAddress: string;
+  nonce: string;
+  deadline: string;
+  callsXdr: string;
+}
+
+export interface RelayDelegatedResponse {
+  delegateAddress: string;
+  transactionHash?: string;
+  status: 'pending' | 'success' | 'failed';
+  error?: string;
+}
+
 export interface TransactionResponse {
   success: boolean;
   transactionHash?: string;

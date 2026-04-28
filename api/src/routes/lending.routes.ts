@@ -3,6 +3,7 @@ import * as lendingController from '../controllers/lending.controller';
 import {
   prepareValidation,
   submitValidation,
+  relayDelegatedValidation,
   paginationValidation,
 } from '../middleware/validation';
 
@@ -119,6 +120,12 @@ router.get('/prepare/:operation', prepareValidation, lendingController.prepare);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/submit', submitValidation, lendingController.submit);
+
+router.post(
+  '/relay-delegated',
+  relayDelegatedValidation,
+  lendingController.relayDelegated
+);
 
 /**
  * @openapi

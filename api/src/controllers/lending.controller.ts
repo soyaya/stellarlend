@@ -3,6 +3,8 @@ import { StellarService } from '../services/stellar.service';
 import {
   LendingOperation,
   PrepareResponse,
+  RelayDelegatedRequest,
+  RelayDelegatedResponse,
   SubmitRequest,
   ProtocolStatsResponse,
   TransactionHistoryQuery,
@@ -61,6 +63,39 @@ export const prepare = async (req: Request, res: Response, next: NextFunction) =
 
     const response: PrepareResponse = { unsignedXdr, operation, expiresAt };
     return res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const relayDelegated = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (emergencyPauseService.isPaused().paused) {
+      return res.status(503).json({
+        success: false,
+        error: 'Protocol is paused',
+        reason: emergencyPauseService.isPaused().reason,
+      });
+    }
+
+    const { delegatorAddress, nonce, deadline, callsXdr } = req.body as RelayDelegatedRequest;
+
+    const stellarService = new StellarService();
+    const result = await stellarService.relayExecuteDelegated(
+      delegatorAddress,
+      nonce,
+      deadline,
+      callsXdr
+    );
+
+    const response: RelayDelegatedResponse = {
+      delegateAddress: result.delegateAddress,
+      transactionHash: result.txHash,
+      status: result.success ? 'success' : 'failed',
+      error: result.error,
+    };
+
+    return res.status(result.success ? 200 : 400).json(response);
   } catch (error) {
     next(error);
   }

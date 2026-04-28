@@ -25,6 +25,7 @@ export const config = {
     readOnlySimulationAccount:
       process.env.READ_ONLY_SIMULATION_ACCOUNT ||
       'GDZZJ3UPZZCKY5DBH6ZGMPMRORRBG4ECIORASBUAXPPNCL4SYRHNLYU2',
+    relayerSecret: process.env.RELAYER_SECRET || '',
   },
   auth: {
     jwtSecret: process.env.JWT_SECRET as string,

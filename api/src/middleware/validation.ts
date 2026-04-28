@@ -68,6 +68,27 @@ const createLendingValidation = () => [
   validateRequest,
 ];
 
+export const relayDelegatedValidation = [
+  body('delegatorAddress')
+    .isString()
+    .notEmpty()
+    .withMessage('delegatorAddress is required')
+    .custom((value) => {
+      if (!StrKey.isValidEd25519PublicKey(value)) {
+        throw new Error('Invalid Stellar address');
+      }
+      return true;
+    }),
+  body('nonce').isString().notEmpty().withMessage('nonce is required'),
+  body('deadline').isString().notEmpty().withMessage('deadline is required'),
+  body('callsXdr')
+    .isString()
+    .notEmpty()
+    .isLength({ max: MAX_XDR_LENGTH })
+    .withMessage('callsXdr is required and must be <= 20000 characters'),
+  validateRequest,
+];
+
 export const prepareValidation = createLendingValidation();
 
 export const submitValidation = [

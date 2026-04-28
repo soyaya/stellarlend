@@ -3,6 +3,7 @@ import {
   Contract,
   xdr,
   Address,
+  Keypair,
   nativeToScVal,
   Account,
   BASE_FEE,
@@ -124,6 +125,61 @@ export class StellarService {
     this.contractId = config.stellar.contractId;
     this.readOnlySimulationAccount = config.stellar.readOnlySimulationAccount;
     this.sorobanServer = new SorobanServer(this.sorobanRpcUrl);
+  }
+
+  async relayExecuteDelegated(
+    delegatorAddress: string,
+    nonce: string,
+    deadline: string,
+    callsXdr: string
+  ): Promise<{
+    delegateAddress: string;
+    txXdr: string;
+    txHash?: string;
+    success: boolean;
+    error?: string;
+  }> {
+    if (!config.stellar.relayerSecret) {
+      throw new InternalServerError('RELAYER_SECRET is not configured');
+    }
+
+    const relayer = Keypair.fromSecret(config.stellar.relayerSecret);
+    const delegateAddress = relayer.publicKey();
+
+    const account = await this.getAccount(delegateAddress);
+    const contract = new Contract(this.contractId);
+
+    // `callsXdr` is an XDR-encoded ScVal representing Vec<Call> as defined by the contract.
+    // This keeps the API generic and avoids having to replicate Soroban struct encoding here.
+    const calls = xdr.ScVal.fromXDR(callsXdr, 'base64');
+
+    const params = [
+      new Address(delegatorAddress).toScVal(),
+      new Address(delegateAddress).toScVal(),
+      nativeToScVal(BigInt(nonce), { type: 'u64' }),
+      nativeToScVal(BigInt(deadline), { type: 'u64' }),
+      calls,
+    ];
+
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(contract.call('execute_delegated', ...params))
+      .setTimeout(TX_TIMEOUT_SECONDS)
+      .build();
+
+    const preparedTx = await this.sorobanServer.prepareTransaction(tx);
+    preparedTx.sign(relayer);
+
+    const submit = await this.submitTransaction(preparedTx.toXDR());
+    return {
+      delegateAddress,
+      txXdr: preparedTx.toXDR(),
+      txHash: submit.transactionHash,
+      success: submit.success,
+      error: submit.success ? undefined : submit.error,
+    };
   }
 
   async getAccount(address: string): Promise<Account> {
