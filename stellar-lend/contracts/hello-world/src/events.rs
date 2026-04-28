@@ -671,7 +671,7 @@ pub fn emit_liquidation_fee_collected(e: &Env, event: LiquidationFeeCollectedEve
 }
 
 // ============================================================================
-// Credit Scoring Events
+// Credit Scoring Events (from origin/main)
 // ============================================================================
 
 #[contractevent]
@@ -685,7 +685,7 @@ pub struct CreditScoreUpdatedEvent {
 }
 
 // ============================================================================
-// Timelock Events
+// Timelock Events (from origin/main)
 // ============================================================================
 
 #[contractevent]
@@ -716,7 +716,7 @@ pub struct TimelockCancelledEvent {
 }
 
 // ============================================================================
-// Circuit Breaker Events
+// Circuit Breaker Events (from origin/main)
 // ============================================================================
 
 #[contractevent]
@@ -747,5 +747,38 @@ pub struct WhitelistAddedEvent {
 pub struct WhitelistRemovedEvent {
     pub liquidator: Address,
     pub removed_by: Address,
+    pub timestamp: u64,
+}
+
+// ============================================================================
+// Liquidation Queue Events (from HEAD)
+// ============================================================================
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct LiquidationQueuedEvent {
+    pub entry_id: u64,
+    pub borrower: Address,
+    pub liquidator: Address,
+    pub health_factor: i128,
+    pub priority_score: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct LiquidationProcessedEvent {
+    pub entry_id: u64,
+    pub borrower: Address,
+    pub liquidator: Address,
+    pub executor: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct LiquidationCancelledEvent {
+    pub entry_id: u64,
+    pub caller: Address,
     pub timestamp: u64,
 }

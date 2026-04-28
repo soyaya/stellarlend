@@ -2717,7 +2717,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "stellarlend-institutional-wallet"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+ "soroban-token-sdk",
+ "stellarlend-common",
+]
+
+[[package]]
 name = "stellarlend-lending"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+ "soroban-token-sdk",
+ "stellarlend-common",
+]
+
+[[package]]
+name = "stellarlend-migration-hub"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
