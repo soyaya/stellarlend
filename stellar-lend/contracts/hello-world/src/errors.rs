@@ -61,6 +61,13 @@ pub enum GovernanceError {
     AlreadyDelegated = 138,
     DelegationDepthExceeded = 139,
     ProposalRateLimitExceeded = 140,
+    // Timelock errors
+    TimelockNotFound = 141,
+    TimelockNotReady = 142,
+    TimelockExpired = 143,
+    InvalidTimelockStatus = 144,
+    InvalidTimelockConfig = 145,
+    InvalidTimelockDelay = 146,
 }
 
 /// Unified public contract error type for the lending interface.
@@ -137,6 +144,10 @@ pub enum LendingError {
     CommitExpired = 32,
     /// Protected execution would exceed the user's declared fee cap.
     FeeCapExceeded = 33,
+    /// Requested resource or entity was not found.
+    NotFound = 34,
+    /// Entity already exists.
+    AlreadyExists = 35,
 }
 
 macro_rules! impl_from_error {

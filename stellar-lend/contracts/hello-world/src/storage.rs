@@ -29,6 +29,23 @@ pub enum GovernanceDataKey {
 
     RecoveryRequest,
     RecoveryApprovals,
+
+    // Timelock keys
+    TimelockConfig,
+    NextTimelockId,
+    TimelockOperation(u64),
+}
+
+#[derive(Clone)]
+#[contracttype]
+pub enum DataKey {
+    // Credit scoring keys
+    CreditScore(Address),
+    
+    // Circuit breaker keys
+    CircuitBreakerConfig,
+    CircuitBreakerState,
+    CircuitBreakerWhitelist,
 }
 
 #[derive(Clone)]

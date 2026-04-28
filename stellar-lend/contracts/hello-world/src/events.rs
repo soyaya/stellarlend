@@ -671,7 +671,87 @@ pub fn emit_liquidation_fee_collected(e: &Env, event: LiquidationFeeCollectedEve
 }
 
 // ============================================================================
-// Liquidation Queue Events
+// Credit Scoring Events (from origin/main)
+// ============================================================================
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct CreditScoreUpdatedEvent {
+    pub user: Address,
+    pub old_score: i128,
+    pub new_score: i128,
+    pub reason: String,
+    pub timestamp: u64,
+}
+
+// ============================================================================
+// Timelock Events (from origin/main)
+// ============================================================================
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct TimelockQueuedEvent {
+    pub operation_id: u64,
+    pub proposer: Address,
+    pub ready_at: u64,
+    pub expires_at: u64,
+    pub delay: u64,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct TimelockExecutedEvent {
+    pub operation_id: u64,
+    pub executor: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct TimelockCancelledEvent {
+    pub operation_id: u64,
+    pub caller: Address,
+    pub timestamp: u64,
+}
+
+// ============================================================================
+// Circuit Breaker Events (from origin/main)
+// ============================================================================
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct CircuitBreakerActivatedEvent {
+    pub activated_by: Address,
+    pub emergency_mode: bool,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct CircuitBreakerDeactivatedEvent {
+    pub deactivated_by: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct WhitelistAddedEvent {
+    pub liquidator: Address,
+    pub added_by: Address,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct WhitelistRemovedEvent {
+    pub liquidator: Address,
+    pub removed_by: Address,
+    pub timestamp: u64,
+}
+
+// ============================================================================
+// Liquidation Queue Events (from HEAD)
 // ============================================================================
 
 #[contractevent]
