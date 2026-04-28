@@ -243,6 +243,14 @@ pub fn liquidate(
     let _guard =
         crate::reentrancy::ReentrancyGuard::new(env).map_err(|_| LiquidationError::Reentrancy)?;
 
+    // Check circuit breaker - liquidations may be paused or restricted
+    let liquidation_allowed = crate::circuit_breaker::is_liquidation_allowed(env, &liquidator)
+        .unwrap_or(true); // Default to allowed if circuit breaker not initialized
+    
+    if !liquidation_allowed {
+        return Err(LiquidationError::LiquidationPaused);
+    }
+
     // Check emergency pause
     if is_emergency_paused(env) {
         return Err(LiquidationError::LiquidationPaused);
@@ -563,6 +571,9 @@ pub fn liquidate(
             timestamp,
         },
     );
+
+    // Update credit score for liquidation
+    let _ = crate::credit_score::update_score_on_liquidation(env, &borrower);
 
     // Emit position updated event
     emit_position_updated_event(env, &borrower, &position);

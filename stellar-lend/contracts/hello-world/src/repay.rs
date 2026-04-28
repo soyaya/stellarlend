@@ -395,6 +395,12 @@ pub fn repay_debt(
         },
     );
 
+    // Update credit score - check if repayment is on time
+    // Consider on-time if debt is being reduced (not just interest)
+    let is_on_time = principal_paid > 0 || repay_amount == total_debt;
+    let _ = crate::credit_score::update_score_on_repayment(env, &user, repay_amount, is_on_time);
+    let _ = crate::credit_score::record_borrow(env, &user, 0); // Update tracking
+
     // Emit position updated event
     emit_position_updated_event(env, &user, &position);
     emit_analytics_updated_event(env, &user, "repay", repay_amount, timestamp);
