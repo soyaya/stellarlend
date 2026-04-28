@@ -9,6 +9,8 @@ members = [
   "contracts/hello-world",
   "contracts/lending",
   "contracts/stablecoin",
+  "contracts/institutional-wallet",
+  "contracts/migration-hub",
 ]
 exclude = ["fuzz"]
 

@@ -7,7 +7,9 @@ pub mod admin;
 pub mod analytics;
 pub mod borrow;
 pub mod bridge;
+pub mod circuit_breaker;
 pub mod config;
+pub mod credit_score;
 pub mod cross_asset;
 pub mod deposit;
 pub mod errors;
@@ -30,6 +32,7 @@ pub mod risk_management;
 pub mod risk_params;
 pub mod safe_math;
 pub mod storage;
+pub mod timelock;
 pub mod treasury;
 pub mod types;
 pub mod withdraw;
@@ -1083,6 +1086,156 @@ impl HelloContract {
         freeze: bool,
     ) -> Result<(), LendingError> {
         cross_asset::freeze_pool(&env, caller, asset, freeze).map_err(Into::into)
+    }
+
+    // -------------------------------------------------------------------------
+    // Credit Scoring System (Issue #189)
+    // -------------------------------------------------------------------------
+
+    /// Initialize credit score for a user
+    pub fn initialize_credit_score(env: Env, user: Address) -> Result<(), LendingError> {
+        credit_score::initialize_credit_score(&env, &user)
+    }
+
+    /// Get credit score for a user
+    pub fn get_credit_score(env: Env, user: Address) -> Result<credit_score::CreditScore, LendingError> {
+        credit_score::get_credit_score(&env, &user)
+    }
+
+    /// Calculate adjusted LTV based on credit score
+    pub fn get_adjusted_ltv(env: Env, user: Address) -> Result<i128, LendingError> {
+        credit_score::calculate_adjusted_ltv(&env, &user)
+    }
+
+    /// Calculate adjusted interest rate based on credit score
+    pub fn get_adjusted_interest_rate(
+        env: Env,
+        user: Address,
+        base_rate_bps: i128,
+    ) -> Result<i128, LendingError> {
+        credit_score::calculate_adjusted_interest_rate(&env, &user, base_rate_bps)
+    }
+
+    // -------------------------------------------------------------------------
+    // Timelock Controller (Issue #187)
+    // -------------------------------------------------------------------------
+
+    /// Initialize timelock configuration
+    pub fn initialize_timelock(
+        env: Env,
+        config: timelock::TimelockConfig,
+    ) -> Result<(), LendingError> {
+        timelock::initialize_timelock(&env, config).map_err(|e| match e {
+            crate::errors::GovernanceError::InvalidTimelockConfig => LendingError::InvalidParameter,
+            _ => LendingError::Unauthorized,
+        })
+    }
+
+    /// Queue a timelock operation
+    pub fn queue_timelock_operation(
+        env: Env,
+        proposer: Address,
+        proposal_type: types::ProposalType,
+        description: String,
+        custom_delay: Option<u64>,
+    ) -> Result<u64, LendingError> {
+        timelock::queue_timelock_operation(&env, proposer, proposal_type, description, custom_delay)
+            .map_err(|_| LendingError::Unauthorized)
+    }
+
+    /// Execute a timelock operation
+    pub fn execute_timelock_operation(
+        env: Env,
+        executor: Address,
+        operation_id: u64,
+    ) -> Result<(), LendingError> {
+        timelock::execute_timelock_operation(&env, executor, operation_id)
+            .map_err(|_| LendingError::Unauthorized)
+    }
+
+    /// Cancel a timelock operation
+    pub fn cancel_timelock_operation(
+        env: Env,
+        caller: Address,
+        operation_id: u64,
+    ) -> Result<(), LendingError> {
+        timelock::cancel_timelock_operation(&env, caller, operation_id)
+            .map_err(|_| LendingError::Unauthorized)
+    }
+
+    /// Get timelock operation
+    pub fn get_timelock_operation(
+        env: Env,
+        operation_id: u64,
+    ) -> Option<timelock::TimelockOperation> {
+        timelock::get_timelock_operation(&env, operation_id)
+    }
+
+    /// Get all pending timelock operations
+    pub fn get_pending_timelock_operations(env: Env) -> Vec<timelock::TimelockOperation> {
+        timelock::get_pending_timelock_operations(&env)
+    }
+
+    // -------------------------------------------------------------------------
+    // Circuit Breaker (Issue #186)
+    // -------------------------------------------------------------------------
+
+    /// Initialize circuit breaker
+    pub fn initialize_circuit_breaker(
+        env: Env,
+        config: circuit_breaker::CircuitBreakerConfig,
+    ) -> Result<(), LendingError> {
+        circuit_breaker::initialize_circuit_breaker(&env, config)
+    }
+
+    /// Activate circuit breaker (governance or admin only)
+    pub fn activate_circuit_breaker(
+        env: Env,
+        caller: Address,
+        reason: circuit_breaker::CircuitBreakerReason,
+        emergency_mode: bool,
+    ) -> Result<(), LendingError> {
+        circuit_breaker::activate_circuit_breaker(&env, caller, reason, emergency_mode)
+    }
+
+    /// Deactivate circuit breaker (governance or admin only)
+    pub fn deactivate_circuit_breaker(env: Env, caller: Address) -> Result<(), LendingError> {
+        circuit_breaker::deactivate_circuit_breaker(&env, caller)
+    }
+
+    /// Get circuit breaker state
+    pub fn get_circuit_breaker_state(
+        env: Env,
+    ) -> Result<circuit_breaker::CircuitBreakerState, LendingError> {
+        circuit_breaker::get_circuit_breaker_state(&env)
+    }
+
+    /// Check if liquidations are allowed
+    pub fn is_liquidation_allowed(env: Env, liquidator: Address) -> Result<bool, LendingError> {
+        circuit_breaker::is_liquidation_allowed(&env, &liquidator)
+    }
+
+    /// Add address to emergency liquidator whitelist
+    pub fn add_to_whitelist(
+        env: Env,
+        admin: Address,
+        liquidator: Address,
+    ) -> Result<(), LendingError> {
+        circuit_breaker::add_to_whitelist(&env, admin, liquidator)
+    }
+
+    /// Remove address from emergency liquidator whitelist
+    pub fn remove_from_whitelist(
+        env: Env,
+        admin: Address,
+        liquidator: Address,
+    ) -> Result<(), LendingError> {
+        circuit_breaker::remove_from_whitelist(&env, admin, liquidator)
+    }
+
+    /// Get whitelist
+    pub fn get_circuit_breaker_whitelist(env: Env) -> Vec<Address> {
+        circuit_breaker::get_whitelist(&env)
     }
 }
 
