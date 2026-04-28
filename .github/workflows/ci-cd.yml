@@ -60,6 +60,26 @@ jobs:
           cd stellar-lend
           cargo test --verbose
 
+      - name: Run gas benchmark suite
+        run: |
+          cd stellar-lend
+          GAS_BENCHMARK_OUTPUT=benchmarks/gas-current.json cargo test --package hello-world gas_benchmark -- --nocapture
+
+      - name: Compare gas benchmarks against baseline
+        run: |
+          cd stellar-lend
+          python3 scripts/check_gas_benchmarks.py \
+            --baseline benchmarks/gas-baseline.json \
+            --current benchmarks/gas-current.json \
+            --max-regression-pct 10
+
+      - name: Upload gas benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-benchmark-report
+          path: stellar-lend/benchmarks/gas-current.json
+
       - name: Run cross-contract tests
         run: |
           cd stellar-lend
